@@ -1,0 +1,296 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  cedula       String
+  celular      String
+  entidadGrupo String
+  cargo        String
+  email        String   @unique
+  usuario      String
+  rol          String
+  estado       String
+  firmaDigital String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model DeletedUser {
+  id               Int      @id @default(autoincrement())
+  originalUserId   Int?
+  cedula           String
+  celular          String
+  entidadGrupo     String
+  cargo            String
+  email            String
+  usuario          String
+  rol              String
+  estado           String
+  firmaDigital     String?
+  createdAt        DateTime
+  updatedAt        DateTime
+  deletedAt        DateTime @default(now())
+  deletedByUsuario String?
+  deletedByEmail   String?
+  deletedByCargo   String?
+}
+
+model Proceso {
+  id               Int       @id @default(autoincrement())
+  externalId       String?   @unique
+  codigoProceso    String?
+  nombre           String?
+  entidad          String?
+  objeto           String?
+  fuente           String?
+  aliasFuente      String?
+  modalidad        String?
+  perfil           String?
+  departamento     String?
+  estadoFuente     String?
+  fechaPublicacion DateTime?
+  fechaVencimiento DateTime?
+  valor            Float?
+  linkDetalle      String?
+  linkSecop        String?
+  linkSecopReg     String?
+  totalCronogramas Int       @default(0)
+  totalDocumentos  Int       @default(0)
+  rawJson          String?
+  hashContenido    String?
+  lastSyncedAt     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  sourceKey        String    @unique
+
+  detalleSecop     ProcesoDetalleSecop?
+  cronogramasSecop ProcesoCronogramaSecop[]
+  documentosSecop  ProcesoDocumentoSecop[]
+  snapshotsSecop   ProcesoSnapshotSecop[]
+
+  @@index([codigoProceso])
+  @@index([perfil])
+  @@index([aliasFuente])
+  @@index([departamento])
+  @@index([estadoFuente])
+  @@index([fechaPublicacion])
+  @@index([fechaVencimiento])
+}
+
+model ProcesoDetalleSecop {
+  id                      Int       @id @default(autoincrement())
+  procesoId               Int       @unique
+  proceso                 Proceso   @relation(fields: [procesoId], references: [id], onDelete: Cascade)
+
+  urlConsulta             String?
+  urlFinal                String?
+  titulo                  String?
+  estado                  String?
+  fase                    String?
+  tipoProceso             String?
+  tipoContrato            String?
+  justificacionModalidad  String?
+  duracionContrato        String?
+  fechaTerminacion        DateTime?
+  direccionEjecucion      String?
+  codigoUnspsc            String?
+  unspscAdicionales       Json?
+  esMipymes               Boolean?
+  esPaa                   Boolean?
+  vigenciaPaa             String?
+  misionVision            String?
+  valorAdquisiciones      Float?
+  valorTotalProceso       Float?
+  cuestionarioJson        Json?
+  informacionPresupuestal Json?
+  textoPlano              String?
+  hashDetalle             String?
+  capturadoEn             DateTime  @default(now())
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([estado])
+  @@index([capturadoEn])
+}
+
+model ProcesoCronogramaSecop {
+  id          Int       @id @default(autoincrement())
+  procesoId   Int
+  proceso     Proceso   @relation(fields: [procesoId], references: [id], onDelete: Cascade)
+
+  evento      String
+  valorTexto  String?
+  fechaInicio DateTime?
+  fechaFin    DateTime?
+  zonaHoraria String?
+  orden       Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([procesoId])
+  @@index([evento])
+}
+
+model ProcesoDocumentoSecop {
+  id             Int       @id @default(autoincrement())
+  procesoId      Int
+  proceso        Proceso   @relation(fields: [procesoId], references: [id], onDelete: Cascade)
+
+  nombre         String
+  urlDocumento   String?
+  tipoDocumento  String?
+  extension      String?
+  hashArchivo    String?
+  rutaLocal      String?
+  mimeType       String?
+  tamanoBytes    Int?
+  textoExtraido  String?
+  descargado     Boolean   @default(false)
+  procesado      Boolean   @default(false)
+  fechaDetectado DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([procesoId])
+  @@index([nombre])
+  @@index([descargado])
+  @@index([procesado])
+}
+
+model ProcesoSnapshotSecop {
+  id            Int       @id @default(autoincrement())
+  procesoId     Int
+  proceso       Proceso   @relation(fields: [procesoId], references: [id], onDelete: Cascade)
+
+  urlConsulta   String?
+  hashContenido String?
+  payloadJson   Json
+  creadoEn      DateTime  @default(now())
+
+  @@index([procesoId])
+  @@index([creadoEn])
+}
+
+model Solicitud {
+  id               Int       @id @default(autoincrement())
+  procesoId        Int?
+  procesoSourceKey String?
+  externalId       String?
+  codigoProceso    String?
+  nombreProceso    String?
+  entidad          String?
+  objeto           String?
+  fuente           String?
+  aliasFuente      String?
+  modalidad        String?
+  perfil           String?
+  departamento     String?
+  estadoFuente     String?
+  fechaPublicacion DateTime?
+  fechaVencimiento DateTime?
+  valor            Float?
+  linkDetalle      String?
+  linkSecop        String?
+  linkSecopReg     String?
+  estadoSolicitud  String    @default("En revisión")
+  observacion      String?
+  ciudad           String?
+  sede             String?
+  plataforma       String?
+  fechaCierre      DateTime?
+  procStep         Int       @default(0)
+  procData         Json      @default("{}")
+  obsData          Json      @default("[]")
+  docData          Json      @default("[]")
+  asignaciones     Json      @default("[]")
+  revisor          String?
+  aprobador        String?
+  usuarioRegistro  String?
+  emailRegistro    String?
+  cargoRegistro    String?
+  entidadRegistro  String?
+
+  sqrNumero        String?
+  sqrCreada        Boolean   @default(false)
+  sqrCerrada       Boolean   @default(false)
+  sqrError         String?
+  fechaAperturaSqr DateTime?
+  fechaCierreSqr   DateTime?
+  resultadoFinal   String?
+  causalCierre     String?
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([estadoSolicitud])
+  @@index([codigoProceso])
+  @@index([procesoSourceKey])
+  @@index([sqrNumero])
+  @@index([sqrCreada])
+  @@index([sqrCerrada])
+}
+
+model DeletedSolicitud {
+  id               Int       @id @default(autoincrement())
+  originalId       Int?
+
+  procesoId        Int?
+  procesoSourceKey String?
+  externalId       String?
+  codigoProceso    String?
+  nombreProceso    String?
+  entidad          String?
+  objeto           String?
+  fuente           String?
+  aliasFuente      String?
+  modalidad        String?
+  perfil           String?
+  departamento     String?
+  estadoFuente     String?
+  fechaPublicacion DateTime?
+  fechaVencimiento DateTime?
+  valor            Float?
+  linkDetalle      String?
+  linkSecop        String?
+  linkSecopReg     String?
+  estadoSolicitud  String?
+  observacion      String?
+  ciudad           String?
+  sede             String?
+  plataforma       String?
+  fechaCierre      DateTime?
+  procStep         Int       @default(0)
+  procData         Json      @default("{}")
+  obsData          Json      @default("[]")
+  docData          Json      @default("[]")
+  asignaciones     Json      @default("[]")
+  revisor          String?
+  aprobador        String?
+  usuarioRegistro  String?
+  emailRegistro    String?
+  cargoRegistro    String?
+  entidadRegistro  String?
+
+  sqrNumero        String?
+  sqrCreada        Boolean?
+  sqrCerrada       Boolean?
+  sqrError         String?
+  fechaAperturaSqr DateTime?
+  fechaCierreSqr   DateTime?
+  resultadoFinal   String?
+  causalCierre     String?
+
+  createdAt        DateTime?
+  updatedAt        DateTime?
+
+  deletedAt        DateTime  @default(now())
+  deletedByUsuario String?
+  deletedByEmail   String?
+}
