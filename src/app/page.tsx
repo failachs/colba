@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+const DRAFT_KEY = 'licycolba_draft_solicitud';
 
 /* ══════════════════════════════════════════════════════════════
    TIPOS
@@ -799,7 +800,7 @@ function ModalEditarSolicitud({sol,sesion,onClose,onGuardado}:{sol:Solicitud;ses
   const [guardando,setGuardando]=useState(false);
   const [error,setError]=useState('');
 
-  const set=(f:string,v:string)=>setForm(p=>{const next={...p,[f]:v};try{localStorage.setItem(DRAFT_KEY,JSON.stringify(next));setTieneBorrador(true);}catch{/**/}return next;});
+  const set=(f:string,v:string)=>setForm((p:typeof form)=>({...p,[f]:v}));
   const subtipos=SUBTIPOS[form.tipoProceso]||[];
 
   const handleGuardar=async()=>{
@@ -961,15 +962,60 @@ const UEN_OPTIONS=['Barranquilla','Bogotá','Mina'];
 const CIUDADES_CO=['Medellín','Bogotá D.C.','Cali','Barranquilla','Cartagena','Bucaramanga','Pereira','Manizales','Cúcuta','Ibagué','Santa Marta','Villavicencio','Pasto','Montería','Neiva','Armenia','Popayán','Valledupar','Sincelejo','Tunja','Riohacha','Quibdó','Florencia','Mocoa','Leticia','Puerto Inírida','San José del Guaviare','Mitú','Puerto Carreño','Yopal','Arauca','San Andrés','Otra'];
 
 function ModalCrearSolicitud({sesion,onClose,onCreada}:{sesion:Sesion;onClose:()=>void;onCreada:()=>void}){
-  const ahora=new Date().toLocaleString('es-CO',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).replace(',','');
-  const DRAFT_KEY='licycolba_draft_solicitud';
-  const formInicial={fechaSolicitud:ahora,nombrePersonal:sesion.usuario,tipoProceso:'',subtipoProceso:'',entidadGrupo:'',uen:'',ciudad:'',entidad:'',codigoProceso:'',objeto:'',valor:'',departamento:'',plataforma:'',linkDetalle:'',fechaCierre:''};
-  const [form,setForm]=useState(()=>{try{const raw=localStorage.getItem(DRAFT_KEY);if(raw){const draft=JSON.parse(raw);return{...formInicial,...draft,fechaSolicitud:ahora,nombrePersonal:sesion.usuario};}}catch{/**/}return formInicial;});
-  const [tieneBorrador,setTieneBorrador]=React.useState(()=>{try{const raw=localStorage.getItem(DRAFT_KEY);if(!raw)return false;const d=JSON.parse(raw);return!!(d.entidad||d.codigoProceso||d.objeto||d.tipoProceso);}catch{return false;}});
-  const [guardando,setGuardando]=useState(false);
-  const [error,setError]=useState('');
+  const ahora = new Date().toLocaleString('es-CO',{
+    year:'numeric',month:'2-digit',day:'2-digit',
+    hour:'2-digit',minute:'2-digit',second:'2-digit'
+  }).replace(',','');
 
-  const set=(f:string,v:string)=>setForm(p=>({...p,[f]:v}));
+  const formInicial = {
+    fechaSolicitud: ahora,
+    nombrePersonal: sesion.usuario,
+    tipoProceso:'',
+    subtipoProceso:'',
+    entidadGrupo:'',
+    uen:'',
+    ciudad:'',
+    entidad:'',
+    codigoProceso:'',
+    objeto:'',
+    valor:'',
+    departamento:'',
+    plataforma:'',
+    linkDetalle:'',
+    fechaCierre:''
+  };
+
+  const [form,setForm] = useState(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        return {
+          ...formInicial,
+          ...draft,
+          fechaSolicitud: ahora,
+          nombrePersonal: sesion.usuario
+        };
+      }
+    } catch {}
+    return formInicial;
+  });
+
+  const [tieneBorrador, setTieneBorrador] = useState(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return false;
+      const d = JSON.parse(raw);
+      return !!(d.entidad || d.codigoProceso || d.objeto || d.tipoProceso);
+    } catch {
+      return false;
+    }
+  });
+
+  const [guardando,setGuardando] = useState(false);
+  const [error,setError] = useState('');
+
+  const set=(f:string,v:string)=>setForm((p:typeof form)=>({...p,[f]:v}));
   const subtipos=SUBTIPOS[form.tipoProceso]||[];
 
   const handleGuardar=async()=>{

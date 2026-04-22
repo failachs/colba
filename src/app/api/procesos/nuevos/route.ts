@@ -85,6 +85,10 @@ export async function GET(req: NextRequest) {
       page,
       limit,
       totalPages: Math.max(1, Math.ceil(total / limit)),
+      stats: {
+        count: procesos.length,
+        total,
+      },
       procesos,
     });
   } catch (err) {
@@ -97,6 +101,10 @@ export async function GET(req: NextRequest) {
         page: 1,
         limit: 30,
         totalPages: 1,
+        stats: {
+          count: 0,
+          total: 0,
+        },
         procesos: [],
         error: err instanceof Error ? err.message : 'Error interno',
       },
