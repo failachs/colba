@@ -1632,6 +1632,87 @@ function ModuloProcesoNuevos({sesion,onModuleChange}:{sesion:Sesion;onModuleChan
   const [errorGestion,setErrorGestion]=useState('');
   const LIMIT=30;
 
+  const syncEnCursoRef = React.useRef(false);
+  const intervaloSyncRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const cargar = useCallback(async (page:number) => {
+    setCargando(true);
+    setError('');
+
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(LIMIT),
+        filtro,
+      });
+
+      if (desde) params.set('desde', desde);
+      if (hasta) params.set('hasta', hasta);
+      if (busqueda) params.set('query', busqueda);
+
+      const res = await fetch(`/api/procesos/nuevos?${params.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        setError(data.error ?? 'No se pudo cargar procesos nuevos.');
+        setProcesos([]);
+        setTotal(0);
+        setTotalPages(1);
+        return;
+      }
+
+      setProcesos(data.procesos ?? []);
+      setTotal(data.total ?? 0);
+      setTotalPages(data.totalPages ?? 1);
+    } catch {
+      setError('No se pudo cargar procesos nuevos.');
+      setProcesos([]);
+      setTotal(0);
+      setTotalPages(1);
+    } finally {
+      setCargando(false);
+    }
+  }, [LIMIT, filtro, desde, hasta, busqueda]);
+
+  const syncAutomatico = useCallback(async () => {
+    if (syncEnCursoRef.current) return;
+
+    syncEnCursoRef.current = true;
+
+    try {
+      const res = await fetch('/api/procesos/sync', { method: 'POST' });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || (data && data.ok === false)) {
+        return;
+      }
+
+      await cargar(1);
+      setPagina(1);
+    } catch {
+      // silencioso
+    } finally {
+      syncEnCursoRef.current = false;
+    }
+  }, [cargar]);
+
+  useEffect(() => {
+    cargar(1);
+
+    intervaloSyncRef.current = setInterval(() => {
+      syncAutomatico();
+    }, 120000);
+
+    return () => {
+      if (intervaloSyncRef.current) {
+        clearInterval(intervaloSyncRef.current);
+        intervaloSyncRef.current = null;
+      }
+    };
+  }, [cargar, syncAutomatico]);
+
+  ...
+}
   const cargar=useCallback(async(pag:number)=>{
     setCargando(true);setError('');
     try{
