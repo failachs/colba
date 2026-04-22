@@ -434,37 +434,46 @@ function ModuloBusquedaProcesos({onModuleChange,sesion}:{onModuleChange?:(mod:st
   },[]);
 
   const handleSync = useCallback(async (silencioso = false) => {
-    if (syncEnCursoRef.current) return;
+  if (syncEnCursoRef.current) return;
 
-    syncEnCursoRef.current = true;
+  syncEnCursoRef.current = true;
+
+  if (!silencioso) {
+    setSyncing(true);
+  }
+
+  setError('');
+
+  try {
+    const res = await fetch('/api/procesos/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        silencioso
+          ? { silencioso: true, maxResultados: 50, limitPorPagina: 25 }
+          : { silencioso: false, maxResultados: 3000, limitPorPagina: 30 }
+      ),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || (data && data.ok === false)) {
+      setError(`Sync falló: ${data?.errores?.[0] ?? data?.error ?? 'Error'}`);
+      return;
+    }
+
+    await consultar(1);
+    setPagina(1);
+  } catch {
+    setError('No se pudo ejecutar el sync.');
+  } finally {
+    syncEnCursoRef.current = false;
 
     if (!silencioso) {
-      setSyncing(true);
+      setSyncing(false);
     }
-
-    setError('');
-
-    try {
-      const res = await fetch('/api/procesos/sync', { method: 'POST' });
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || (data && data.ok === false)) {
-        setError(`Sync falló: ${data?.errores?.[0] ?? data?.error ?? 'Error'}`);
-        return;
-      }
-
-      await consultar(1);
-      setPagina(1);
-    } catch {
-      setError('No se pudo ejecutar el sync.');
-    } finally {
-      syncEnCursoRef.current = false;
-
-      if (!silencioso) {
-        setSyncing(false);
-      }
-    }
-  }, [consultar]);
+  }
+}, [consultar]);
 
   useEffect(() => {
     consultar(1);
@@ -2222,7 +2231,7 @@ function ModuloProcesoNuevos({sesion,onModuleChange}:{sesion:Sesion;onModuleChan
     } finally {
       setCargando(false);
     }
-  }, [LIMIT, filtro, desde, hasta, busqueda]);
+  }, [filtro, desde, hasta, busqueda]);
 
   const syncAutomatico = useCallback(async () => {
     if (syncEnCursoRef.current) return;
@@ -2235,6 +2244,8 @@ function ModuloProcesoNuevos({sesion,onModuleChange}:{sesion:Sesion;onModuleChan
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           silencioso: true,
+          maxResultados: 50,
+          limitPorPagina: 25,
         }),
       });
 
