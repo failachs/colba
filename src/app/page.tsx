@@ -309,58 +309,608 @@ function TarjetaProceso({p,onDetalle,leido}:{p:LiciProceso;onDetalle:()=>void;le
    MÓDULO BÚSQUEDA
 ══════════════════════════════════════════════════════════════ */
 function ModuloBusquedaProcesos({onModuleChange,sesion}:{onModuleChange?:(mod:string)=>void;sesion?:Sesion}){
-  const [busqueda,setBusqueda]=useState('');const[pagina,setPagina]=useState(1);const[resultado,setResultado]=useState<ProcesosApiResponse|null>(null);const[cargando,setCargando]=useState(true);const[syncing,setSyncing]=useState(false);const[error,setError]=useState('');const[detalle,setDetalle]=useState<LiciProceso|null>(null);
-  const [leidos,setLeidos]=useState<Set<string>>(()=>{try{const r=localStorage.getItem('lici_leidos');return r?new Set(JSON.parse(r) as string[]):new Set();}catch{return new Set();}});
-  const [pF,setPF]=useState(false);const[fEnt,setFEnt]=useState<'all'|'aseocolba'|'tempocolba'|'vigicolba'>('all');const[fPor,setFPor]=useState<'all'|'publico'|'privado'>('all');const[fDpto,setFDpto]=useState('');const[fCod,setFCod]=useState('');const[fFD,setFFD]=useState('');const[fFH,setFFH]=useState('');const[fFuente,setFFuente]=useState('all');
-  const [fA,setFA]=useState({entidad:'all' as 'all'|'aseocolba'|'tempocolba'|'vigicolba',portal:'all' as 'all'|'publico'|'privado',fuente:'all',dpto:'',codigo:'',fechaDesde:'',fechaHasta:''});
-  const hayFA=fA.entidad!=='all'||fA.portal!=='all'||fA.fuente!=='all'||fA.dpto||fA.codigo||fA.fechaDesde||fA.fechaHasta;
-  const aplicar=()=>{setFA({entidad:fEnt,portal:fPor,fuente:fFuente,dpto:fDpto,codigo:fCod,fechaDesde:fFD,fechaHasta:fFH});setPagina(1);setPF(false);};
-  const limpiar=()=>{setFEnt('all');setFPor('all');setFFuente('all');setFDpto('');setFCod('');setFFD('');setFFH('');setFA({entidad:'all',portal:'all',fuente:'all',dpto:'',codigo:'',fechaDesde:'',fechaHasta:''});setBusqueda('');setPagina(1);};
-  const POR_PAGINA=30;
-  const marcarLeido=(p:LiciProceso)=>{const key=p.codigoProceso||p.linkDetalle||String(p.id);if(!key||leidos.has(key))return;const next=new Set(leidos).add(key);setLeidos(next);try{localStorage.setItem('lici_leidos',JSON.stringify([...next]));}catch{/**/}};
-  const abrirDetalle=(p:LiciProceso)=>{marcarLeido(p);setDetalle(p);};const esLeido=(p:LiciProceso)=>leidos.has(p.codigoProceso||p.linkDetalle||String(p.id));
-  const consultar=useCallback(async(pag:number)=>{setCargando(true);setError('');try{const res=await fetch(`/api/procesos?page=${pag}&limit=${POR_PAGINA}`);const data:ProcesosApiResponse=await res.json();if(!res.ok||!data.ok){setError(data.error??`Error ${res.status}`);setResultado(null);}else{setResultado(data);}}catch{setError('No se pudo conectar.');setResultado(null);}finally{setCargando(false);};},[]);
-  useEffect(()=>{consultar(1);},[consultar]);
-  const handleSync=async()=>{setSyncing(true);setError('');try{const res=await fetch('/api/procesos/sync',{method:'POST'});const data=await res.json();if(!data.ok){setError(`Sync falló: ${data.errores?.[0]??'Error'}`); }else{await consultar(1);setPagina(1);}}catch{setError('No se pudo ejecutar el sync.');}finally{setSyncing(false);}};
-  const handleGestionar=async(p:LiciProceso)=>{
-    const res=await fetch('/api/solicitudes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      externalId:p.id||null,codigoProceso:p.codigoProceso,nombreProceso:p.nombre,
-      entidad:p.entidad,objeto:p.objeto,fuente:p.fuente,aliasFuente:p.aliasFuente,
-      modalidad:p.modalidad,perfil:p.perfil,departamento:p.departamento,
-      estadoFuente:p.estado,fechaPublicacion:p.fechaPublicacion,
-      fechaVencimiento:p.fechaVencimiento,valor:p.valor,
-      linkDetalle:p.linkDetalle,linkSecop:p.linkSecop,linkSecopReg:p.linkSecopReg,
-      usuarioRegistro:sesion?.usuario??'',emailRegistro:sesion?.email??'',
-      cargoRegistro:sesion?.cargo??'',entidadRegistro:sesion?.entidadGrupo??'',
-      estadoSolicitud:'En revisión',
-      docData: p.documentos??[],
-      procData: (p.cronogramas??[]).reduce((acc:Record<string,{fechaI:string;fechaF:string;obs:string}>,cr,i)=>({
-        ...acc,
-        [`step_${i}`]:{fechaI:cr.fecha??'',fechaF:cr.fecha??'',obs:cr.nombre??`Etapa ${i+1}`},
-      }),{}),
-    })});
-    const data=await res.json();
-    if(!res.ok||!data.ok)throw new Error(data.error??'No se pudo crear la solicitud');
-    setDetalle(null);onModuleChange?.('solicitudesAbiertas');
+  const [busqueda,setBusqueda]=useState('');
+  const [pagina,setPagina]=useState(1);
+  const [resultado,setResultado]=useState<ProcesosApiResponse|null>(null);
+  const [cargando,setCargando]=useState(true);
+  const [syncing,setSyncing]=useState(false);
+  const [error,setError]=useState('');
+  const [detalle,setDetalle]=useState<LiciProceso|null>(null);
+
+  const [leidos,setLeidos]=useState<Set<string>>(()=>{
+    try{
+      const r=localStorage.getItem('lici_leidos');
+      return r ? new Set(JSON.parse(r) as string[]) : new Set();
+    }catch{
+      return new Set();
+    }
+  });
+
+  const [pF,setPF]=useState(false);
+  const [fEnt,setFEnt]=useState<'all'|'aseocolba'|'tempocolba'|'vigicolba'>('all');
+  const [fPor,setFPor]=useState<'all'|'publico'|'privado'>('all');
+  const [fDpto,setFDpto]=useState('');
+  const [fCod,setFCod]=useState('');
+  const [fFD,setFFD]=useState('');
+  const [fFH,setFFH]=useState('');
+  const [fFuente,setFFuente]=useState('all');
+
+  const [fA,setFA]=useState({
+    entidad:'all' as 'all'|'aseocolba'|'tempocolba'|'vigicolba',
+    portal:'all' as 'all'|'publico'|'privado',
+    fuente:'all',
+    dpto:'',
+    codigo:'',
+    fechaDesde:'',
+    fechaHasta:''
+  });
+
+  const hayFA =
+    fA.entidad!=='all' ||
+    fA.portal!=='all' ||
+    fA.fuente!=='all' ||
+    !!fA.dpto ||
+    !!fA.codigo ||
+    !!fA.fechaDesde ||
+    !!fA.fechaHasta;
+
+  const aplicar=()=>{
+    setFA({
+      entidad:fEnt,
+      portal:fPor,
+      fuente:fFuente,
+      dpto:fDpto,
+      codigo:fCod,
+      fechaDesde:fFD,
+      fechaHasta:fFH
+    });
+    setPagina(1);
+    setPF(false);
   };
-  const filtrados=useMemo(()=>{if(!resultado?.procesos)return[];let l=resultado.procesos;if(fA.entidad!=='all')l=l.filter(p=>(p.perfil||'').toLowerCase()===fA.entidad.toLowerCase());if(fA.portal!=='all')l=l.filter(p=>{const f=(p.fuente||p.aliasFuente||'').toLowerCase();return fA.portal==='publico'?f.includes('secop'):!f.includes('secop');});if(fA.fuente!=='all')l=l.filter(p=>{const f=(p.fuente||p.aliasFuente||'').toLowerCase();if(fA.fuente==='secop i')return f.includes('secop i')&&!f.includes('secop ii');if(fA.fuente==='secop ii')return f.includes('secop ii');if(fA.fuente==='otro')return!f.includes('secop');return true;});if(fA.dpto.trim()){const d=fA.dpto.toLowerCase();l=l.filter(p=>(p.departamento||'').toLowerCase().includes(d));}if(fA.codigo.trim()){const c=fA.codigo.toLowerCase();l=l.filter(p=>(p.codigoProceso||'').toLowerCase().includes(c)||(p.entidad||'').toLowerCase().includes(c)||(p.objeto||'').toLowerCase().includes(c));}if(fA.fechaDesde){const desde=new Date(fA.fechaDesde);l=l.filter(p=>{if(!p.fechaPublicacion)return false;return new Date(p.fechaPublicacion.replace(' ','T'))>=desde;});}if(fA.fechaHasta){const hasta=new Date(fA.fechaHasta);hasta.setHours(23,59,59);l=l.filter(p=>{if(!p.fechaPublicacion)return false;return new Date(p.fechaPublicacion.replace(' ','T'))<=hasta;});}if(busqueda.trim()){const q=busqueda.toLowerCase();l=l.filter(p=>[p.entidad,p.nombre,p.objeto,p.codigoProceso,p.departamento,p.estado,p.fuente,p.perfil].some(v=>(v||'').toLowerCase().includes(q)));}return l;},[resultado,fA,busqueda]);
-  const totalApi=resultado?.total_resultados_api??0;const totalPages=Math.max(1,Math.ceil(totalApi/POR_PAGINA));
-  const handlePagina=(p:number)=>{setPagina(p);consultar(p);};const handleRefresh=()=>{setPagina(1);setBusqueda('');limpiar();consultar(1);};
-  const badgesFiltros=[fA.entidad!=='all'&&{label:`Entidad: ${fA.entidad}`,clear:()=>setFA(f=>({...f,entidad:'all'}))},fA.portal!=='all'&&{label:`Tipo: ${fA.portal==='publico'?'Público':'Privado'}`,clear:()=>setFA(f=>({...f,portal:'all'}))},fA.fuente!=='all'&&{label:`Fuente: ${fA.fuente}`,clear:()=>setFA(f=>({...f,fuente:'all'}))},fA.dpto&&{label:`Dpto: ${fA.dpto}`,clear:()=>setFA(f=>({...f,dpto:''}))},fA.codigo&&{label:`Código: ${fA.codigo}`,clear:()=>setFA(f=>({...f,codigo:''}))},fA.fechaDesde&&{label:`Desde: ${fA.fechaDesde}`,clear:()=>setFA(f=>({...f,fechaDesde:''}))},fA.fechaHasta&&{label:`Hasta: ${fA.fechaHasta}`,clear:()=>setFA(f=>({...f,fechaHasta:''}))}].filter(Boolean) as {label:string;clear:()=>void}[];
-  const dptosSug=useMemo(()=>{if(!resultado?.procesos)return[];const s=new Set(resultado.procesos.map(p=>(p.departamento||'').split(':')[0].trim()).filter(Boolean));return Array.from(s).sort();},[resultado]);
-  const sEl:React.CSSProperties={width:'100%',height:34,border:'1px solid #e2e8f0',borderRadius:8,padding:'0 10px',fontSize:12.5,fontFamily:'var(--font)',color:'#374151',background:'white',outline:'none',cursor:'pointer'};
-  const iEl:React.CSSProperties={width:'100%',height:34,border:'1px solid #e2e8f0',borderRadius:8,padding:'0 10px',fontSize:12.5,fontFamily:'var(--font)',color:'#374151',outline:'none',boxSizing:'border-box'};
-  const lEl:React.CSSProperties={fontSize:11.5,fontWeight:600,color:'#64748b',display:'block',marginBottom:5};
-  return(<>{detalle&&<ModalDetalleProceso p={detalle} onClose={()=>setDetalle(null)} onGestionar={()=>handleGestionar(detalle)}/>}
-  {pF&&<div style={{position:'fixed',inset:0,zIndex:900}} onClick={()=>setPF(false)}><div onClick={e=>e.stopPropagation()} style={{position:'fixed',top:52,right:12,width:304,maxHeight:'calc(100vh - 70px)',background:'white',borderRadius:12,boxShadow:'0 8px 32px rgba(0,0,0,.18)',border:'1px solid #e2e8f0',display:'flex',flexDirection:'column',zIndex:901,overflow:'hidden'}}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px 12px',borderBottom:'1px solid #f1f5f9',flexShrink:0}}><span style={{fontSize:13.5,fontWeight:700,color:'#0f172a'}}>Filtrar procesos</span><button onClick={()=>setPF(false)} style={{background:'none',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:20,lineHeight:1,padding:'0 2px'}}>×</button></div><div style={{overflowY:'auto',flex:1,padding:'14px 16px'}}><div style={{marginBottom:13}}><label style={lEl}>Entidad del grupo</label><select value={fEnt} onChange={e=>setFEnt(e.target.value as typeof fEnt)} style={sEl}><option value="all">Todas</option><option value="aseocolba">Aseocolba</option><option value="tempocolba">Tempocolba</option><option value="vigicolba">Vigicolba</option></select></div><div style={{marginBottom:13}}><label style={lEl}>Tipo de proceso</label><select value={fPor} onChange={e=>setFPor(e.target.value as typeof fPor)} style={sEl}><option value="all">Todos</option><option value="publico">Público</option><option value="privado">Privado</option></select></div><div style={{marginBottom:13}}><label style={lEl}>Portal / Fuente</label><select value={fFuente} onChange={e=>setFFuente(e.target.value)} style={sEl}><option value="all">Todos</option><option value="secop i">SECOP I</option><option value="secop ii">SECOP II</option><option value="otro">Otro</option></select></div><div style={{marginBottom:13}}><label style={lEl}>Departamento</label><select value={fDpto} onChange={e=>setFDpto(e.target.value)} style={sEl}><option value="">Todos</option>{dptosSug.map(d=><option key={d} value={d}>{d}</option>)}</select></div><div style={{marginBottom:13}}><label style={lEl}>No. proceso / Entidad / Objeto</label><input type="text" value={fCod} onChange={e=>setFCod(e.target.value)} placeholder="Ej. MC-007-2026…" style={iEl}/></div><div style={{marginBottom:13}}><label style={lEl}>Fecha publicación — desde</label><input type="date" value={fFD} onChange={e=>setFFD(e.target.value)} style={iEl}/></div><div style={{marginBottom:4}}><label style={lEl}>Fecha publicación — hasta</label><input type="date" value={fFH} onChange={e=>setFFH(e.target.value)} style={iEl}/></div></div><div style={{padding:'12px 16px',borderTop:'1px solid #f1f5f9',display:'flex',gap:8,flexShrink:0}}><button onClick={aplicar} style={{flex:1,height:36,borderRadius:8,background:'#1E5799',color:'white',border:'none',fontSize:13,fontWeight:700,fontFamily:'var(--font)',cursor:'pointer'}}>Aplicar</button><button onClick={limpiar} style={{height:36,padding:'0 16px',borderRadius:8,background:'white',color:'#64748b',border:'1px solid #e2e8f0',fontSize:13,fontFamily:'var(--font)',cursor:'pointer'}}>Limpiar</button></div></div></div>}
-  <div className="content"><div className="page-header"><div className="page-title"><svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:16,height:16}}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><span>Búsqueda de procesos</span></div><div className="page-actions"><input type="text" className="search-box" placeholder="Buscar en resultados…" value={busqueda} onChange={e=>setBusqueda(e.target.value)} disabled={cargando}/><button className={`icon-btn${hayFA?' active':''}`} title="Filtrar" onClick={()=>{setFEnt(fA.entidad);setFPor(fA.portal);setFDpto(fA.dpto);setFCod(fA.codigo);setFFD(fA.fechaDesde);setFFH(fA.fechaHasta);setFFuente(fA.fuente);setPF(v=>!v);}} style={{position:'relative'}}><IcoFilter/>{hayFA&&<span style={{position:'absolute',top:2,right:2,width:7,height:7,borderRadius:'50%',background:'#ef4444',border:'1.5px solid white'}}/>}</button><button className="icon-btn" title="Recargar" onClick={handleRefresh} disabled={cargando||syncing}><IcoRefresh/></button><button className="icon-btn" title="Sincronizar" onClick={handleSync} disabled={syncing||cargando} style={{position:'relative',borderColor:syncing?'#1E5799':undefined,color:syncing?'#1E5799':undefined}}><IcoSync/>{syncing&&<span style={{position:'absolute',top:-3,right:-3,width:8,height:8,borderRadius:'50%',background:'#1E5799',border:'1.5px solid white'}}/>}</button></div></div>
-  {badgesFiltros.length>0&&<div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>{badgesFiltros.map((b,i)=><span key={i} style={{display:'inline-flex',alignItems:'center',gap:5,height:24,padding:'0 10px',borderRadius:20,background:'#EAF2FB',color:'#1E5799',fontSize:11,fontWeight:600}}>{b.label}<button onClick={b.clear} style={{background:'none',border:'none',cursor:'pointer',color:'#2E7BC4',fontSize:13,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button></span>)}<button onClick={limpiar} style={{height:24,padding:'0 10px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontSize:11,fontWeight:600,border:'none',cursor:'pointer',fontFamily:'var(--font)'}}>Limpiar todos</button></div>}
-  {syncing&&<div style={{background:'#EAF2FB',border:'1px solid #D0E4F3',borderRadius:8,padding:'10px 14px',color:'#1E5799',fontSize:12,marginBottom:12}}>🔄 Sincronizando procesos…</div>}
-  {error&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 14px',color:'#dc2626',fontSize:12,marginBottom:12}}>⚠️ {error}</div>}
-  {cargando&&!syncing&&<div className="module-status">Cargando procesos…</div>}
-  {!cargando&&resultado&&(<>{filtrados.length===0?<div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:12,padding:'40px 20px',textAlign:'center',color:'#94a3b8',fontSize:13}}>{totalApi===0?<><p style={{margin:'0 0 12px'}}>No hay procesos en la base local.</p><button onClick={handleSync} disabled={syncing} style={{height:36,padding:'0 20px',borderRadius:8,background:'#1E5799',color:'white',border:'none',fontSize:13,fontWeight:600,fontFamily:'var(--font)',cursor:'pointer'}}>Sincronizar ahora</button></>:busqueda?`Sin resultados para "${busqueda}".`:'Sin resultados.'}</div>:<div style={{display:'flex',flexDirection:'column',gap:10}}>{filtrados.map((p,i)=><TarjetaProceso key={`${p.codigoProceso||p.linkDetalle||p.objeto}-${i}`} p={p} leido={esLeido(p)} onDetalle={()=>abrirDetalle(p)}/>)}</div>}
-  <div className="pagination-bar" style={{marginTop:16}}><span>{totalApi>0?`${(pagina-1)*POR_PAGINA+1} – ${Math.min(pagina*POR_PAGINA,totalApi)} de ${totalApi.toLocaleString('es-CO')}`:'0 resultados'}</span><div className="pages"><button className="page-btn" onClick={()=>handlePagina(pagina-1)} disabled={pagina<=1||cargando}>‹</button>{(()=>{const total=totalPages;let pages:(number|-1)[]=[];if(total<=7){pages=Array.from({length:total},(_,i)=>i+1);}else{pages=[1];if(pagina>3)pages.push(-1);for(let i=Math.max(2,pagina-1);i<=Math.min(total-1,pagina+1);i++)pages.push(i);if(pagina<total-2)pages.push(-1);pages.push(total);}return pages.map((n,i)=>n===-1?<span key={`el${i}`} style={{padding:'0 3px',color:'#9ca3af',fontSize:12}}>…</span>:<button key={n} className={`page-btn${n===pagina?' active':''}`} onClick={()=>n!==pagina&&handlePagina(n)} disabled={cargando}>{n}</button>);})()}<button className="page-btn" onClick={()=>handlePagina(pagina+1)} disabled={pagina>=totalPages||cargando}>›</button></div></div></>)}</div></>);
+
+  const limpiar=()=>{
+    setFEnt('all');
+    setFPor('all');
+    setFFuente('all');
+    setFDpto('');
+    setFCod('');
+    setFFD('');
+    setFFH('');
+    setFA({
+      entidad:'all',
+      portal:'all',
+      fuente:'all',
+      dpto:'',
+      codigo:'',
+      fechaDesde:'',
+      fechaHasta:''
+    });
+    setBusqueda('');
+    setPagina(1);
+  };
+
+  const POR_PAGINA=30;
+  const syncEnCursoRef = React.useRef(false);
+  const intervaloSyncRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const marcarLeido=(p:LiciProceso)=>{
+    const key=p.codigoProceso||p.linkDetalle||String(p.id);
+    if(!key||leidos.has(key)) return;
+    const next=new Set(leidos).add(key);
+    setLeidos(next);
+    try{
+      localStorage.setItem('lici_leidos',JSON.stringify([...next]));
+    }catch{
+      /**/
+    }
+  };
+
+  const abrirDetalle=(p:LiciProceso)=>{
+    marcarLeido(p);
+    setDetalle(p);
+  };
+
+  const esLeido=(p:LiciProceso)=>leidos.has(p.codigoProceso||p.linkDetalle||String(p.id));
+
+  const consultar=useCallback(async(pag:number)=>{
+    setCargando(true);
+    setError('');
+    try{
+      const res=await fetch(`/api/procesos?page=${pag}&limit=${POR_PAGINA}`);
+      const data:ProcesosApiResponse=await res.json();
+
+      if(!res.ok||!data.ok){
+        setError(data.error??`Error ${res.status}`);
+        setResultado(null);
+      }else{
+        setResultado(data);
+      }
+    }catch{
+      setError('No se pudo conectar.');
+      setResultado(null);
+    }finally{
+      setCargando(false);
+    }
+  },[]);
+
+  const handleSync = useCallback(async (silencioso = false) => {
+    if (syncEnCursoRef.current) return;
+
+    syncEnCursoRef.current = true;
+
+    if (!silencioso) {
+      setSyncing(true);
+    }
+
+    setError('');
+
+    try {
+      const res = await fetch('/api/procesos/sync', { method: 'POST' });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || (data && data.ok === false)) {
+        setError(`Sync falló: ${data?.errores?.[0] ?? data?.error ?? 'Error'}`);
+        return;
+      }
+
+      await consultar(1);
+      setPagina(1);
+    } catch {
+      setError('No se pudo ejecutar el sync.');
+    } finally {
+      syncEnCursoRef.current = false;
+
+      if (!silencioso) {
+        setSyncing(false);
+      }
+    }
+  }, [consultar]);
+
+  useEffect(() => {
+    consultar(1);
+
+    intervaloSyncRef.current = setInterval(() => {
+      handleSync(true);
+    }, 120000);
+
+    return () => {
+      if (intervaloSyncRef.current) {
+        clearInterval(intervaloSyncRef.current);
+        intervaloSyncRef.current = null;
+      }
+    };
+  }, [consultar, handleSync]);
+
+  const handleGestionar=async(p:LiciProceso)=>{
+    const res=await fetch('/api/solicitudes',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        externalId:p.id||null,
+        codigoProceso:p.codigoProceso,
+        nombreProceso:p.nombre,
+        entidad:p.entidad,
+        objeto:p.objeto,
+        fuente:p.fuente,
+        aliasFuente:p.aliasFuente,
+        modalidad:p.modalidad,
+        perfil:p.perfil,
+        departamento:p.departamento,
+        estadoFuente:p.estado,
+        fechaPublicacion:p.fechaPublicacion,
+        fechaVencimiento:p.fechaVencimiento,
+        valor:p.valor,
+        linkDetalle:p.linkDetalle,
+        linkSecop:p.linkSecop,
+        linkSecopReg:p.linkSecopReg,
+        usuarioRegistro:sesion?.usuario??'',
+        emailRegistro:sesion?.email??'',
+        cargoRegistro:sesion?.cargo??'',
+        entidadRegistro:sesion?.entidadGrupo??'',
+        estadoSolicitud:'En revisión',
+        docData:p.documentos??[],
+        procData:(p.cronogramas??[]).reduce((acc:Record<string,{fechaI:string;fechaF:string;obs:string}>,cr,i)=>({
+          ...acc,
+          [`step_${i}`]:{
+            fechaI:cr.fecha??'',
+            fechaF:cr.fecha??'',
+            obs:cr.nombre??`Etapa ${i+1}`
+          },
+        }),{}),
+      })
+    });
+
+    const data=await res.json();
+    if(!res.ok||!data.ok) throw new Error(data.error??'No se pudo crear la solicitud');
+
+    setDetalle(null);
+    onModuleChange?.('solicitudesAbiertas');
+  };
+
+  const filtrados=useMemo(()=>{
+    if(!resultado?.procesos) return [];
+
+    let l=resultado.procesos;
+
+    if(fA.entidad!=='all'){
+      l=l.filter(p=>(p.perfil||'').toLowerCase()===fA.entidad.toLowerCase());
+    }
+
+    if(fA.portal!=='all'){
+      l=l.filter(p=>{
+        const f=(p.fuente||p.aliasFuente||'').toLowerCase();
+        return fA.portal==='publico' ? f.includes('secop') : !f.includes('secop');
+      });
+    }
+
+    if(fA.fuente!=='all'){
+      l=l.filter(p=>{
+        const f=(p.fuente||p.aliasFuente||'').toLowerCase();
+        if(fA.fuente==='secop i') return f.includes('secop i')&&!f.includes('secop ii');
+        if(fA.fuente==='secop ii') return f.includes('secop ii');
+        if(fA.fuente==='otro') return !f.includes('secop');
+        return true;
+      });
+    }
+
+    if(fA.dpto.trim()){
+      const d=fA.dpto.toLowerCase();
+      l=l.filter(p=>(p.departamento||'').toLowerCase().includes(d));
+    }
+
+    if(fA.codigo.trim()){
+      const c=fA.codigo.toLowerCase();
+      l=l.filter(p=>
+        (p.codigoProceso||'').toLowerCase().includes(c) ||
+        (p.entidad||'').toLowerCase().includes(c) ||
+        (p.objeto||'').toLowerCase().includes(c)
+      );
+    }
+
+    if(fA.fechaDesde){
+      const desde=new Date(fA.fechaDesde);
+      l=l.filter(p=>{
+        if(!p.fechaPublicacion) return false;
+        return new Date(p.fechaPublicacion.replace(' ','T'))>=desde;
+      });
+    }
+
+    if(fA.fechaHasta){
+      const hasta=new Date(fA.fechaHasta);
+      hasta.setHours(23,59,59);
+      l=l.filter(p=>{
+        if(!p.fechaPublicacion) return false;
+        return new Date(p.fechaPublicacion.replace(' ','T'))<=hasta;
+      });
+    }
+
+    if(busqueda.trim()){
+      const q=busqueda.toLowerCase();
+      l=l.filter(p=>
+        [p.entidad,p.nombre,p.objeto,p.codigoProceso,p.departamento,p.estado,p.fuente,p.perfil]
+          .some(v=>(v||'').toLowerCase().includes(q))
+      );
+    }
+
+    return l;
+  },[resultado,fA,busqueda]);
+
+  const totalApi=resultado?.total_resultados_api??0;
+  const totalPages=Math.max(1,Math.ceil(totalApi/POR_PAGINA));
+
+  const handlePagina=(p:number)=>{
+    setPagina(p);
+    consultar(p);
+  };
+
+  const handleRefresh=()=>{
+    setPagina(1);
+    setBusqueda('');
+    limpiar();
+    consultar(1);
+  };
+
+  const badgesFiltros=[
+    fA.entidad!=='all'&&{label:`Entidad: ${fA.entidad}`,clear:()=>setFA(f=>({...f,entidad:'all'}))},
+    fA.portal!=='all'&&{label:`Tipo: ${fA.portal==='publico'?'Público':'Privado'}`,clear:()=>setFA(f=>({...f,portal:'all'}))},
+    fA.fuente!=='all'&&{label:`Fuente: ${fA.fuente}`,clear:()=>setFA(f=>({...f,fuente:'all'}))},
+    fA.dpto&&{label:`Dpto: ${fA.dpto}`,clear:()=>setFA(f=>({...f,dpto:''}))},
+    fA.codigo&&{label:`Código: ${fA.codigo}`,clear:()=>setFA(f=>({...f,codigo:''}))},
+    fA.fechaDesde&&{label:`Desde: ${fA.fechaDesde}`,clear:()=>setFA(f=>({...f,fechaDesde:''}))},
+    fA.fechaHasta&&{label:`Hasta: ${fA.fechaHasta}`,clear:()=>setFA(f=>({...f,fechaHasta:''}))}
+  ].filter(Boolean) as {label:string;clear:()=>void}[];
+
+  const dptosSug=useMemo(()=>{
+    if(!resultado?.procesos) return [];
+    const s=new Set(
+      resultado.procesos
+        .map(p=>(p.departamento||'').split(':')[0].trim())
+        .filter(Boolean)
+    );
+    return Array.from(s).sort();
+  },[resultado]);
+
+  const sEl:React.CSSProperties={
+    width:'100%',
+    height:34,
+    border:'1px solid #e2e8f0',
+    borderRadius:8,
+    padding:'0 10px',
+    fontSize:12.5,
+    fontFamily:'var(--font)',
+    color:'#374151',
+    background:'white',
+    outline:'none',
+    cursor:'pointer'
+  };
+
+  const iEl:React.CSSProperties={
+    width:'100%',
+    height:34,
+    border:'1px solid #e2e8f0',
+    borderRadius:8,
+    padding:'0 10px',
+    fontSize:12.5,
+    fontFamily:'var(--font)',
+    color:'#374151',
+    outline:'none',
+    boxSizing:'border-box'
+  };
+
+  const lEl:React.CSSProperties={
+    fontSize:11.5,
+    fontWeight:600,
+    color:'#64748b',
+    display:'block',
+    marginBottom:5
+  };
+
+  return(
+    <>
+      {detalle&&<ModalDetalleProceso p={detalle} onClose={()=>setDetalle(null)} onGestionar={()=>handleGestionar(detalle)}/>}
+
+      {pF&&(
+        <div style={{position:'fixed',inset:0,zIndex:900}} onClick={()=>setPF(false)}>
+          <div
+            onClick={e=>e.stopPropagation()}
+            style={{
+              position:'fixed',
+              top:52,
+              right:12,
+              width:304,
+              maxHeight:'calc(100vh - 70px)',
+              background:'white',
+              borderRadius:12,
+              boxShadow:'0 8px 32px rgba(0,0,0,.18)',
+              border:'1px solid #e2e8f0',
+              display:'flex',
+              flexDirection:'column',
+              zIndex:901,
+              overflow:'hidden'
+            }}
+          >
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px 12px',borderBottom:'1px solid #f1f5f9',flexShrink:0}}>
+              <span style={{fontSize:13.5,fontWeight:700,color:'#0f172a'}}>Filtrar procesos</span>
+              <button onClick={()=>setPF(false)} style={{background:'none',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:20,lineHeight:1,padding:'0 2px'}}>×</button>
+            </div>
+
+            <div style={{overflowY:'auto',flex:1,padding:'14px 16px'}}>
+              <div style={{marginBottom:13}}>
+                <label style={lEl}>Entidad del grupo</label>
+                <select value={fEnt} onChange={e=>setFEnt(e.target.value as typeof fEnt)} style={sEl}>
+                  <option value="all">Todas</option>
+                  <option value="aseocolba">Aseocolba</option>
+                  <option value="tempocolba">Tempocolba</option>
+                  <option value="vigicolba">Vigicolba</option>
+                </select>
+              </div>
+
+              <div style={{marginBottom:13}}>
+                <label style={lEl}>Tipo de proceso</label>
+                <select value={fPor} onChange={e=>setFPor(e.target.value as typeof fPor)} style={sEl}>
+                  <option value="all">Todos</option>
+                  <option value="publico">Público</option>
+                  <option value="privado">Privado</option>
+                </select>
+              </div>
+
+              <div style={{marginBottom:13}}>
+                <label style={lEl}>Portal / Fuente</label>
+                <select value={fFuente} onChange={e=>setFFuente(e.target.value)} style={sEl}>
+                  <option value="all">Todos</option>
+                  <option value="secop i">SECOP I</option>
+                  <option value="secop ii">SECOP II</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+
+              <div style={{marginBottom:13}}>
+                <label style={lEl}>Departamento</label>
+                <select value={fDpto} onChange={e=>setFDpto(e.target.value)} style={sEl}>
+                  <option value="">Todos</option>
+                  {dptosSug.map(d=><option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
+              <div style={{marginBottom:13}}>
+                <label style={lEl}>No. proceso / Entidad / Objeto</label>
+                <input type="text" value={fCod} onChange={e=>setFCod(e.target.value)} placeholder="Ej. MC-007-2026…" style={iEl}/>
+              </div>
+
+              <div style={{marginBottom:13}}>
+                <label style={lEl}>Fecha publicación — desde</label>
+                <input type="date" value={fFD} onChange={e=>setFFD(e.target.value)} style={iEl}/>
+              </div>
+
+              <div style={{marginBottom:4}}>
+                <label style={lEl}>Fecha publicación — hasta</label>
+                <input type="date" value={fFH} onChange={e=>setFFH(e.target.value)} style={iEl}/>
+              </div>
+            </div>
+
+            <div style={{padding:'12px 16px',borderTop:'1px solid #f1f5f9',display:'flex',gap:8,flexShrink:0}}>
+              <button onClick={aplicar} style={{flex:1,height:36,borderRadius:8,background:'#1E5799',color:'white',border:'none',fontSize:13,fontWeight:700,fontFamily:'var(--font)',cursor:'pointer'}}>Aplicar</button>
+              <button onClick={limpiar} style={{height:36,padding:'0 16px',borderRadius:8,background:'white',color:'#64748b',border:'1px solid #e2e8f0',fontSize:13,fontFamily:'var(--font)',cursor:'pointer'}}>Limpiar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="content">
+        <div className="page-header">
+          <div className="page-title">
+            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:16,height:16}}>
+              <circle cx="11" cy="11" r="8"/>
+              <path d="M21 21l-4.35-4.35"/>
+            </svg>
+            <span>Búsqueda de procesos</span>
+          </div>
+
+          <div className="page-actions">
+            <input
+              type="text"
+              className="search-box"
+              placeholder="Buscar en resultados…"
+              value={busqueda}
+              onChange={e=>setBusqueda(e.target.value)}
+              disabled={cargando}
+            />
+
+            <button
+              className={`icon-btn${hayFA?' active':''}`}
+              title="Filtrar"
+              onClick={()=>{
+                setFEnt(fA.entidad);
+                setFPor(fA.portal);
+                setFDpto(fA.dpto);
+                setFCod(fA.codigo);
+                setFFD(fA.fechaDesde);
+                setFFH(fA.fechaHasta);
+                setFFuente(fA.fuente);
+                setPF(v=>!v);
+              }}
+              style={{position:'relative'}}
+            >
+              <IcoFilter/>
+              {hayFA&&<span style={{position:'absolute',top:2,right:2,width:7,height:7,borderRadius:'50%',background:'#ef4444',border:'1.5px solid white'}}/>}
+            </button>
+
+            <button className="icon-btn" title="Recargar" onClick={handleRefresh} disabled={cargando||syncing}>
+              <IcoRefresh/>
+            </button>
+
+            <button
+              className="icon-btn"
+              title="Sincronizar"
+              onClick={()=>handleSync(false)}
+              disabled={syncing||cargando}
+              style={{position:'relative',borderColor:syncing?'#1E5799':undefined,color:syncing?'#1E5799':undefined}}
+            >
+              <IcoSync/>
+              {syncing&&<span style={{position:'absolute',top:-3,right:-3,width:8,height:8,borderRadius:'50%',background:'#1E5799',border:'1.5px solid white'}}/>}
+            </button>
+          </div>
+        </div>
+
+        {badgesFiltros.length>0&&(
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+            {badgesFiltros.map((b,i)=>
+              <span key={i} style={{display:'inline-flex',alignItems:'center',gap:5,height:24,padding:'0 10px',borderRadius:20,background:'#EAF2FB',color:'#1E5799',fontSize:11,fontWeight:600}}>
+                {b.label}
+                <button onClick={b.clear} style={{background:'none',border:'none',cursor:'pointer',color:'#2E7BC4',fontSize:13,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button>
+              </span>
+            )}
+            <button onClick={limpiar} style={{height:24,padding:'0 10px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontSize:11,fontWeight:600,border:'none',cursor:'pointer',fontFamily:'var(--font)'}}>
+              Limpiar todos
+            </button>
+          </div>
+        )}
+
+        {syncing&&(
+          <div style={{background:'#EAF2FB',border:'1px solid #D0E4F3',borderRadius:8,padding:'10px 14px',color:'#1E5799',fontSize:12,marginBottom:12}}>
+            🔄 Sincronizando procesos…
+          </div>
+        )}
+
+        {error&&(
+          <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 14px',color:'#dc2626',fontSize:12,marginBottom:12}}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        {cargando&&!syncing&&<div className="module-status">Cargando procesos…</div>}
+
+        {!cargando&&resultado&&(
+          <>
+            {filtrados.length===0 ? (
+              <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:12,padding:'40px 20px',textAlign:'center',color:'#94a3b8',fontSize:13}}>
+                {totalApi===0 ? (
+                  <>
+                    <p style={{margin:'0 0 12px'}}>No hay procesos en la base local.</p>
+                    <button
+                      onClick={()=>handleSync(false)}
+                      disabled={syncing}
+                      style={{height:36,padding:'0 20px',borderRadius:8,background:'#1E5799',color:'white',border:'none',fontSize:13,fontWeight:600,fontFamily:'var(--font)',cursor:'pointer'}}
+                    >
+                      Sincronizar ahora
+                    </button>
+                  </>
+                ) : busqueda ? `Sin resultados para "${busqueda}".` : 'Sin resultados.'}
+              </div>
+            ) : (
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {filtrados.map((p,i)=>
+                  <TarjetaProceso
+                    key={`${p.codigoProceso||p.linkDetalle||p.objeto}-${i}`}
+                    p={p}
+                    leido={esLeido(p)}
+                    onDetalle={()=>abrirDetalle(p)}
+                  />
+                )}
+              </div>
+            )}
+
+            <div className="pagination-bar" style={{marginTop:16}}>
+              <span>
+                {totalApi>0
+                  ? `${(pagina-1)*POR_PAGINA+1} – ${Math.min(pagina*POR_PAGINA,totalApi)} de ${totalApi.toLocaleString('es-CO')}`
+                  : '0 resultados'}
+              </span>
+
+              <div className="pages">
+                <button className="page-btn" onClick={()=>handlePagina(pagina-1)} disabled={pagina<=1||cargando}>‹</button>
+
+                {(()=>{
+                  const total=totalPages;
+                  let pages:(number|-1)[]=[];
+
+                  if(total<=7){
+                    pages=Array.from({length:total},(_,i)=>i+1);
+                  }else{
+                    pages=[1];
+                    if(pagina>3) pages.push(-1);
+                    for(let i=Math.max(2,pagina-1);i<=Math.min(total-1,pagina+1);i++) pages.push(i);
+                    if(pagina<total-2) pages.push(-1);
+                    pages.push(total);
+                  }
+
+                  return pages.map((n,i)=>
+                    n===-1
+                      ? <span key={`el${i}`} style={{padding:'0 3px',color:'#9ca3af',fontSize:12}}>…</span>
+                      : <button key={n} className={`page-btn${n===pagina?' active':''}`} onClick={()=>n!==pagina&&handlePagina(n)} disabled={cargando}>{n}</button>
+                  );
+                })()}
+
+                <button className="page-btn" onClick={()=>handlePagina(pagina+1)} disabled={pagina>=totalPages||cargando}>›</button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
 }
+
 const ModuloBusquedaFinal=ModuloBusquedaProcesos;
 
 /* ══════════════════════════════════════════════════════════════
