@@ -7,6 +7,7 @@ import {
   normalizarProceso,
 } from '@/lib/licitaciones-info';
 import type { LiciProcesoRaw } from '@/lib/licitaciones-info';
+import { resolverLinkRealDesdeLicitacionesInfo } from '@/lib/resolver-link-real';
 
 export interface SyncMetrics {
   ok: boolean;
@@ -112,6 +113,10 @@ function buildSourceKey(raw: LiciProcesoRaw, p: ReturnType<typeof normalizarProc
   return `raw:${crypto.createHash('md5').update(JSON.stringify(raw)).digest('hex')}`;
 }
 
+function esLinkLicitacionesInfo(url: string | null | undefined): boolean {
+  return String(url ?? '').includes('licitaciones.info/detalle-contrato');
+}
+
 export async function sincronizarProcesos(params?: {
   maxResultados?: number;
   limitPorPagina?: number;
@@ -205,17 +210,46 @@ export async function sincronizarProcesos(params?: {
 
     for (const raw of procesosRaw) {
       try {
-        const p = normalizarProceso(raw);
-        const sourceKey = buildSourceKey(raw, p);
-        const hashContenido = hashProceso(p);
+        let p = normalizarProceso(raw);
+
+        // Primero revisamos existencia con el sourceKey original normalizado
+        const sourceKeyInicial = buildSourceKey(raw, p);
 
         const existing = await prisma.proceso.findUnique({
-          where: { sourceKey },
+          where: { sourceKey: sourceKeyInicial },
           select: {
             id: true,
             hashContenido: true,
           },
         });
+
+        // Resolver link real SOLO para procesos nuevos
+        if (!existing && esLinkLicitacionesInfo(p.linkDetalle)) {
+          try {
+            const linkReal = await resolverLinkRealDesdeLicitacionesInfo(p.linkDetalle);
+
+            if (linkReal && linkReal !== p.linkDetalle) {
+              p = {
+                ...p,
+                linkDetalle: linkReal,
+                linkSecop:
+                  p.linkSecop ||
+                  (linkReal.includes('secop.gov.co') || linkReal.includes('contratos.gov.co')
+                    ? linkReal
+                    : ''),
+              };
+            }
+          } catch (errResolver) {
+            const msg = `Resolviendo link real (${p.codigoProceso ?? 'sin-codigo'}): ${
+              errResolver instanceof Error ? errResolver.message : String(errResolver)
+            }`;
+            metrics.errores.push(msg);
+            console.error('[sync][resolver-link-real]', msg);
+          }
+        }
+
+        const sourceKey = buildSourceKey(raw, p);
+        const hashContenido = hashProceso(p);
 
         const data = {
           sourceKey,
@@ -244,17 +278,12 @@ export async function sincronizarProcesos(params?: {
         };
 
         if (!existing) {
-          // ── Proceso nuevo: crear en tabla principal ──────────────────
           const creado = await prisma.proceso.create({ data });
           metrics.creados++;
 
-          // ── Registrar en ProcesoNuevo (sin duplicados por sourceKey) ──
           try {
             await prisma.procesoNuevo.upsert({
               where: { sourceKey },
-              // Si ya existe un registro previo con este sourceKey
-              // (edge case: proceso borrado y re-detectado), no sobreescribir
-              // la fechaDeteccion original — se preserva la primera detección.
               update: {},
               create: {
                 procesoId:        creado.id,
@@ -275,19 +304,17 @@ export async function sincronizarProcesos(params?: {
                 linkDetalle:      data.linkDetalle,
                 linkSecop:        data.linkSecop,
                 linkSecopReg:     data.linkSecopReg,
-                fechaDeteccion:   new Date(), // momento exacto de detección
+                fechaDeteccion:   new Date(),
               },
             });
             metrics.nuevosRegistrados++;
           } catch (errNuevo) {
-            // No interrumpir el sync si falla solo el registro auxiliar
             const msg = `ProcesoNuevo upsert (${sourceKey}): ${errNuevo instanceof Error ? errNuevo.message : String(errNuevo)}`;
             metrics.errores.push(msg);
             console.error('[sync][ProcesoNuevo]', msg);
           }
 
         } else if (existing.hashContenido !== hashContenido) {
-          // ── Proceso existente con cambios: actualizar tabla principal ──
           await prisma.proceso.update({
             where: { id: existing.id },
             data,
@@ -295,7 +322,6 @@ export async function sincronizarProcesos(params?: {
           metrics.actualizados++;
 
         } else {
-          // ── Sin cambios: solo actualizar timestamp de sync ──
           await prisma.proceso.update({
             where: { id: existing.id },
             data: { lastSyncedAt: new Date() },
