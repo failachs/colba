@@ -200,11 +200,11 @@ function ModalNuevoUsuario({onClose,onCreado}:{onClose:()=>void;onCreado:()=>voi
   const handleGuardar=async()=>{setError('');if(!form.cedula||!form.email||!form.usuario||!form.rol||!form.cargo||!form.entidadGrupo||!form.celular){setError('Todos los campos * son obligatorios.');return;}if(!form.password||form.password.length<6){setError('La contraseña debe tener al menos 6 caracteres.');return;}setGuardando(true);try{const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});const data=await res.json();if(!res.ok){setError(data.error??'Error al guardar.');return;}onCreado();onClose();}catch{setError('No se pudo conectar.');}finally{setGuardando(false);}};
   return(<div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div className="modal-card"><div className="modal-header"><div style={{display:'flex',alignItems:'center',gap:8,color:'#1E5799'}}><IcoUsuarios/><h3 style={{margin:0,fontSize:15,fontWeight:600,color:'#111827'}}>Nuevo usuario</h3></div><button className="modal-close-btn" onClick={onClose}><IcoClose/></button></div>{error&&<div className="modal-error">{error}</div>}<div className="modal-body"><div className="form-row"><div className="form-field"><label>Cédula *</label><input type="text" autoComplete="off" value={form.cedula} onChange={e=>set('cedula',e.target.value)}/></div><div className="form-field"><label>Celular *</label><input type="tel" autoComplete="off" value={form.celular} onChange={e=>set('celular',e.target.value)}/></div></div><div className="form-row"><div className="form-field"><label>Entidad del grupo *</label><input type="text" autoComplete="off" value={form.entidadGrupo} onChange={e=>set('entidadGrupo',e.target.value)}/></div><div className="form-field"><label>Cargo *</label><input type="text" autoComplete="off" value={form.cargo} onChange={e=>set('cargo',e.target.value)}/></div></div><div className="form-row"><div className="form-field"><label>Email *</label><input type="text" autoComplete="off" value={form.email} onChange={e=>set('email',e.target.value)}/></div><div className="form-field"><label>Nombre de usuario *</label><input type="text" autoComplete="off" value={form.usuario} onChange={e=>set('usuario',e.target.value)}/></div></div><div className="form-row"><div className="form-field"><label>Rol *</label><input type="text" autoComplete="off" value={form.rol} onChange={e=>set('rol',e.target.value)}/></div><div className="form-field"><label>Estado</label><select value={form.estado} onChange={e=>set('estado',e.target.value)}><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select></div></div><div className="form-row"><div className="form-field"><label>Contraseña * <span style={{fontSize:10.5,color:'#9ca3af',fontWeight:400}}>(mín. 6)</span></label><div style={{position:'relative'}}><input type={showPass?'text':'password'} placeholder="••••••••" autoComplete="new-password" style={{paddingRight:40}} value={form.password} onChange={e=>set('password',e.target.value)}/><button type="button" onClick={()=>setShowPass(v=>!v)} style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',border:'none',background:'transparent',cursor:'pointer',color:'#6b7280',width:24,height:24,padding:0,display:'flex',alignItems:'center',justifyContent:'center'}} tabIndex={-1}><PT v={showPass}/></button></div></div><div className="form-field"/></div></div><div className="modal-actions"><button className="modal-btn-cancel" onClick={onClose} disabled={guardando}>Cancelar</button><button className="modal-btn-save" onClick={handleGuardar} disabled={guardando}>{guardando?'Guardando…':'Guardar usuario'}</button></div></div></div>);
 }
-function ModalEditarUsuario({usuario:u,onClose,onGuardado}:{usuario:User;onClose:()=>void;onGuardado:()=>void}){
+function ModalEditarUsuario({usuario:u,onClose,onGuardado}:{usuario:User;onClose:()=>void;onGuardado:(updatedUser: User)=>void}){
   const [form,setForm]=useState({cedula:u.cedula,celular:u.celular,entidadGrupo:u.entidadGrupo,cargo:u.cargo,email:u.email,usuario:u.usuario,rol:u.rol,estado:u.estado,firmaDigital:u.firmaDigital??'',password:''});const[showPass,setShowPass]=useState(false);const[guardando,setGuardando]=useState(false);const[error,setError]=useState('');
   const set=(f:keyof typeof form,v:string)=>setForm(p=>({...p,[f]:v}));
   const PT=({v}:{v:boolean})=>(<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:15,height:15}}>{v?<><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></>:<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>}</svg>);
-  const handleGuardar=async()=>{setError('');if(!form.cedula||!form.email||!form.usuario||!form.rol||!form.cargo||!form.entidadGrupo||!form.celular){setError('Todos los campos * son obligatorios.');return;}if(form.password&&form.password.length<6){setError('La contraseña debe tener al menos 6 caracteres.');return;}setGuardando(true);try{const payload={...form};if(!payload.password)delete(payload as Partial<typeof payload>).password;const res=await fetch(`/api/users/${u.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await res.json();if(!res.ok){setError(data.error??'Error al guardar.');return;}onGuardado();onClose();}catch{setError('No se pudo conectar.');}finally{setGuardando(false);}};
+  const handleGuardar=async()=>{setError('');if(!form.cedula||!form.email||!form.usuario||!form.rol||!form.cargo||!form.entidadGrupo||!form.celular){setError('Todos los campos * son obligatorios.');return;}if(form.password&&form.password.length<6){setError('La contraseña debe tener al menos 6 caracteres.');return;}setGuardando(true);try{const payload={...form};if(!payload.password)delete(payload as Partial<typeof payload>).password;const res=await fetch(`/api/users/${u.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await res.json();if(!res.ok){setError(data.error??'Error al guardar.');return;}onGuardado(data as User);onClose();}catch{setError('No se pudo conectar.');}finally{setGuardando(false);}};
   return(<div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div className="modal-card"><div className="modal-header"><div style={{display:'flex',alignItems:'center',gap:8,color:'#1E5799'}}><IcoPencil/><h3 style={{margin:0,fontSize:15,fontWeight:600,color:'#111827'}}>Editar usuario</h3></div><button className="modal-close-btn" onClick={onClose}><IcoClose/></button></div>{error&&<div className="modal-error">{error}</div>}<div className="modal-body"><div className="form-row"><div className="form-field"><label>Cédula *</label><input type="text" value={form.cedula} onChange={e=>set('cedula',e.target.value)}/></div><div className="form-field"><label>Celular *</label><input type="tel" value={form.celular} onChange={e=>set('celular',e.target.value)}/></div></div><div className="form-row"><div className="form-field"><label>Entidad del grupo *</label><input type="text" value={form.entidadGrupo} onChange={e=>set('entidadGrupo',e.target.value)}/></div><div className="form-field"><label>Cargo *</label><input type="text" value={form.cargo} onChange={e=>set('cargo',e.target.value)}/></div></div><div className="form-row"><div className="form-field"><label>Email *</label><input type="email" value={form.email} onChange={e=>set('email',e.target.value)}/></div><div className="form-field"><label>Nombre de usuario *</label><input type="text" value={form.usuario} onChange={e=>set('usuario',e.target.value)}/></div></div><div className="form-row"><div className="form-field"><label>Rol *</label><input type="text" value={form.rol} onChange={e=>set('rol',e.target.value)}/></div><div className="form-field"><label>Estado</label><select value={form.estado} onChange={e=>set('estado',e.target.value)}><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select></div></div><div className="form-row"><div className="form-field"><label>Nueva contraseña <span style={{fontSize:10.5,color:'#9ca3af',fontWeight:400,marginLeft:6}}>(vacío = no cambiar)</span></label><div style={{position:'relative'}}><input type={showPass?'text':'password'} placeholder="••••••••" autoComplete="new-password" style={{paddingRight:40}} value={form.password} onChange={e=>set('password',e.target.value)}/><button type="button" onClick={()=>setShowPass(v=>!v)} style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',border:'none',background:'transparent',cursor:'pointer',color:'#6b7280',width:24,height:24,padding:0,display:'flex',alignItems:'center',justifyContent:'center'}} tabIndex={-1}><PT v={showPass}/></button></div></div><div className="form-field"/></div></div><div className="modal-actions"><button className="modal-btn-cancel" onClick={onClose} disabled={guardando}>Cancelar</button><button className="modal-btn-save" onClick={handleGuardar} disabled={guardando}>{guardando?'Guardando…':'Guardar cambios'}</button></div></div></div>);
 }
 function ModalConfirmarEliminarUsuario({usuarios:sel,onClose,onEliminado,sesion}:{usuarios:User[];onClose:()=>void;onEliminado:()=>void;sesion:Sesion}){
@@ -256,7 +256,7 @@ function ModuloUsuarios({sesion,onSesionActualizada}:{sesion:Sesion;onSesionActu
   const toggleOne=(id:number,c:boolean)=>setSeleccionados(p=>c?[...p,id]:p.filter(x=>x!==id));
   if(cargando)return<div className="content"><div className="module-status">Cargando usuarios…</div></div>;
   if(errorCarga)return<div className="content"><div className="module-status error">{errorCarga}</div></div>;
-  return(<>{modalAbierto&&<ModalNuevoUsuario onClose={()=>setModalAbierto(false)} onCreado={cargarUsuarios}/>}{modalEditar&&<ModalEditarUsuario usuario={modalEditar} onClose={()=>setModalEditar(null)} onGuardado={()=>{setSeleccionados([]);cargarUsuarios();if(modalEditar.email===sesion.email){const s:Sesion={usuario:modalEditar.usuario,cargo:modalEditar.cargo,email:modalEditar.email,entidadGrupo:modalEditar.entidadGrupo,rol:modalEditar.rol};guardarSesion(s);onSesionActualizada(s);}}}/>}{modalEliminar&&<ModalConfirmarEliminarUsuario usuarios={usuarios.filter(u=>seleccionados.includes(u.id))} onClose={()=>setModalEliminar(false)} onEliminado={()=>{setSeleccionados([]);cargarUsuarios();}} sesion={sesion}/>}<div className="content"><div className="page-header"><div className="page-title"><IcoUsuarios/><span>Usuarios : {filtrados.length} / {usuarios.length}</span></div><div className="page-actions"><input type="text" className="search-box" placeholder="Buscar…" value={busqueda} onChange={e=>setBusqueda(e.target.value)}/><button className="icon-btn" title="Información"><IcoInfo/></button><button className="icon-btn" title="Actualizar" onClick={()=>{setBusqueda('');cargarUsuarios();}}><IcoRefresh/></button><button className="icon-btn blue-fill" title="Nuevo usuario" onClick={()=>setModalAbierto(true)}><IcoPlus/></button><button className="icon-btn" title="Editar" disabled={seleccionados.length!==1} onClick={()=>{const u=usuarios.find(u=>u.id===seleccionados[0]);if(u)setModalEditar(u);}}><IcoPencil/></button><button className="icon-btn red" title="Eliminar" disabled={seleccionados.length===0} onClick={()=>setModalEliminar(true)}><IcoTrash/></button><button className="icon-btn green" title="Exportar Excel" onClick={()=>exportarExcel(filtrados)}><IcoExcel/></button></div></div><div className="table-card"><div className="table-scroll"><table><thead><tr><th style={{width:36}}><div className="th-top"><input type="checkbox" className="cbx" checked={todosMarcados} onChange={e=>toggleAll(e.target.checked)}/></div></th>{([[140,'Cédula'],[130,'Celular'],[180,'Entidad del grupo'],[180,'Cargo'],[220,'Email'],[160,'Usuario'],[160,'Rol'],[110,'Estado']] as [number,string][]).map(([w,label])=><th key={label} style={{minWidth:w}}><div className="th-top">{label}</div></th>)}<th style={{minWidth:110,textAlign:'center'}}><div className="th-top">Firma digital</div></th></tr><tr><th/>{Array.from({length:9}).map((_,i)=><th key={i}><div style={{padding:'0 10px 5px',color:'#d1d5db',fontSize:11}}>≡</div></th>)}</tr></thead><tbody>{filtrados.length===0?<tr><td colSpan={10} style={{textAlign:'center',color:'#6b7280',padding:'28px 10px'}}>{busqueda?'Sin resultados.':'No hay usuarios registrados.'}</td></tr>:filtrados.map(u=><tr key={u.id}><td className="center"><input type="checkbox" className="cbx" checked={seleccionados.includes(u.id)} onChange={e=>toggleOne(u.id,e.target.checked)}/></td><td>{u.cedula}</td><td>{u.celular}</td><td>{u.entidadGrupo}</td><td>{u.cargo}</td><td>{u.email}</td><td>{u.usuario}</td><td>{u.rol}</td><td><span className="badge" style={{background:u.estado==='Activo'?'#d1fae5':'#fee2e2',color:u.estado==='Activo'?'#065f46':'#dc2626',fontSize:11}}>{u.estado}</span></td><td style={{textAlign:'center'}}><button className="firma-btn" title="Cargar firma digital" onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#EAF2FB';}} onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';}}><IcoUpload/></button></td></tr>)}</tbody></table></div><div className="pagination-bar"><span>{filtrados.length>0?`1 - ${filtrados.length} de ${usuarios.length}`:`0 de ${usuarios.length}`}</span></div></div></div></>);
+  return(<>{modalAbierto&&<ModalNuevoUsuario onClose={()=>setModalAbierto(false)} onCreado={cargarUsuarios}/>}{modalEditar&&<ModalEditarUsuario usuario={modalEditar} onClose={()=>setModalEditar(null)} onGuardado={(updatedUser)=>{setSeleccionados([]);cargarUsuarios();if(updatedUser.email===sesion.email){const s:Sesion={usuario:updatedUser.usuario,cargo:updatedUser.cargo,email:updatedUser.email,entidadGrupo:updatedUser.entidadGrupo,rol:updatedUser.rol};guardarSesion(s);onSesionActualizada(s);}}}/>}{modalEliminar&&<ModalConfirmarEliminarUsuario usuarios={usuarios.filter(u=>seleccionados.includes(u.id))} onClose={()=>setModalEliminar(false)} onEliminado={()=>{setSeleccionados([]);cargarUsuarios();}} sesion={sesion}/>}<div className="content"><div className="page-header"><div className="page-title"><IcoUsuarios/><span>Usuarios : {filtrados.length} / {usuarios.length}</span></div><div className="page-actions"><input type="text" className="search-box" placeholder="Buscar…" value={busqueda} onChange={e=>setBusqueda(e.target.value)}/><button className="icon-btn" title="Información"><IcoInfo/></button><button className="icon-btn" title="Actualizar" onClick={()=>{setBusqueda('');cargarUsuarios();}}><IcoRefresh/></button><button className="icon-btn blue-fill" title="Nuevo usuario" onClick={()=>setModalAbierto(true)}><IcoPlus/></button><button className="icon-btn" title="Editar" disabled={seleccionados.length!==1} onClick={()=>{const u=usuarios.find(u=>u.id===seleccionados[0]);if(u)setModalEditar(u);}}><IcoPencil/></button><button className="icon-btn red" title="Eliminar" disabled={seleccionados.length===0} onClick={()=>setModalEliminar(true)}><IcoTrash/></button><button className="icon-btn green" title="Exportar Excel" onClick={()=>exportarExcel(filtrados)}><IcoExcel/></button></div></div><div className="table-card"><div className="table-scroll"><table><thead><tr><th style={{width:36}}><div className="th-top"><input type="checkbox" className="cbx" checked={todosMarcados} onChange={e=>toggleAll(e.target.checked)}/></div></th>{([[140,'Cédula'],[130,'Celular'],[180,'Entidad del grupo'],[180,'Cargo'],[220,'Email'],[160,'Usuario'],[160,'Rol'],[110,'Estado']] as [number,string][]).map(([w,label])=><th key={label} style={{minWidth:w}}><div className="th-top">{label}</div></th>)}<th style={{minWidth:110,textAlign:'center'}}><div className="th-top">Firma digital</div></th></tr><tr><th/>{Array.from({length:9}).map((_,i)=><th key={i}><div style={{padding:'0 10px 5px',color:'#d1d5db',fontSize:11}}>≡</div></th>)}</tr></thead><tbody>{filtrados.length===0?<tr><td colSpan={10} style={{textAlign:'center',color:'#6b7280',padding:'28px 10px'}}>{busqueda?'Sin resultados.':'No hay usuarios registrados.'}</td></tr>:filtrados.map(u=><tr key={u.id}><td className="center"><input type="checkbox" className="cbx" checked={seleccionados.includes(u.id)} onChange={e=>toggleOne(u.id,e.target.checked)}/></td><td>{u.cedula}</td><td>{u.celular}</td><td>{u.entidadGrupo}</td><td>{u.cargo}</td><td>{u.email}</td><td>{u.usuario}</td><td>{u.rol}</td><td><span className="badge" style={{background:u.estado==='Activo'?'#d1fae5':'#fee2e2',color:u.estado==='Activo'?'#065f46':'#dc2626',fontSize:11}}>{u.estado}</span></td><td style={{textAlign:'center'}}><button className="firma-btn" title="Cargar firma digital" onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#EAF2FB';}} onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';}}><IcoUpload/></button></td></tr>)}</tbody></table></div><div className="pagination-bar"><span>{filtrados.length>0?`1 - ${filtrados.length} de ${usuarios.length}`:`0 de ${usuarios.length}`}</span></div></div></div></>);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -533,7 +533,7 @@ function ModuloBusquedaProcesos({onModuleChange,sesion}:{onModuleChange?:(mod:st
     if(!res.ok||!data.ok) throw new Error(data.error??'No se pudo crear la solicitud');
 
     setDetalle(null);
-    onModuleChange?.('solicitudesAbiertas');
+    onModuleChange?.('solicitudesComercial');
   };
 
   const filtrados=useMemo(()=>{
@@ -1328,186 +1328,361 @@ function ModalProceso({sol,onClose,onGuardado}:{sol:Solicitud;onClose:()=>void;o
 /* ══════════════════════════════════════════════════════════════
    MODAL EDITAR SOLICITUD
 ══════════════════════════════════════════════════════════════ */
-function ModalEditarSolicitud({sol,sesion,onClose,onGuardado}:{sol:Solicitud;sesion:Sesion;onClose:()=>void;onGuardado:(updated:Solicitud)=>void}){
-  const fmtFechaInput=(r:string|null)=>{if(!r)return'';try{return new Date(r).toISOString().slice(0,10);}catch{return'';}};
-  const fmtFechaDisplay=(r:string)=>{try{return new Date(r).toLocaleString('es-CO',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).replace(',','');}catch{return r;}};
-
-  // Detectar tipo de proceso desde sede o fuente
-  const tipoInicial=(()=>{
-    if(sol.sede==='Público'||sol.sede==='Privado')return sol.sede;
-    if((sol.fuente||'').toLowerCase().includes('secop'))return'Público';
-    return '';
-  })();
-  // Detectar modalidad: si modalidad contiene " — " viene de flujo antiguo, separar
-  const modalidadParts=sol.modalidad?.includes(' — ')?(sol.modalidad.split(' — ')):[null,sol.modalidad||''];
-  const subtipoInicial=modalidadParts[1]||'';
-
-  const [form,setForm]=useState({
-    fechaCreacion:fmtFechaDisplay(sol.createdAt),
-    nombrePersonal:sol.usuarioRegistro||sesion.usuario,
-    tipoProceso:tipoInicial,
-    subtipoProceso:subtipoInicial,
-    entidadGrupo:sol.perfil||'',
-    ciudad:sol.ciudad||'',
-    entidad:sol.entidad||'',
-    codigoProceso:sol.codigoProceso||'',
-    objeto:sol.objeto||'',
-    valor:sol.valor?String(sol.valor):'',
-    plataforma:sol.plataforma||'',
-    fechaCierre:fmtFechaInput(sol.fechaCierre),
-  });
-  const [guardando,setGuardando]=useState(false);
-  const [error,setError]=useState('');
-
-  const set=(f:string,v:string)=>setForm((p:typeof form)=>({...p,[f]:v}));
-  const subtipos=SUBTIPOS[form.tipoProceso]||[];
-
-  const handleGuardar=async()=>{
-    setError('');
-    if(!form.tipoProceso||!form.entidadGrupo||!form.ciudad||!form.entidad||!form.codigoProceso||!form.objeto){
-      setError('Los campos marcados con * son obligatorios.');return;
+function ModalEditarSolicitud({
+  sol,
+  sesion,
+  onClose,
+  onGuardado,
+}: {
+  sol: Solicitud;
+  sesion: Sesion;
+  onClose: () => void;
+  onGuardado: (updated: Solicitud) => void;
+}) {
+  const fmtFechaInput = (r: string | null) => {
+    if (!r) return '';
+    try {
+      return new Date(r).toISOString().slice(0, 10);
+    } catch {
+      return '';
     }
-    setGuardando(true);
-    try{
-      const res=await fetch('/api/solicitudes',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        id:              sol.id,
-        codigoProceso:   form.codigoProceso,
-        nombreProceso:   form.objeto,
-        entidad:         form.entidad,
-        objeto:          form.objeto,
-        modalidad:       form.subtipoProceso||form.tipoProceso,
-        sede:            form.tipoProceso,
-        perfil:          form.entidadGrupo,
-        ciudad:          form.ciudad,
-        plataforma:      form.plataforma||sol.plataforma||'Manual',
-        fechaCierre:     form.fechaCierre||null,
-        valor:           form.valor?Number(form.valor.replace(/[^0-9]/g,'')):null,
-        entidadRegistro: form.entidadGrupo,
-      })});
-      const data=await res.json();
-      if(!res.ok||!data.ok)throw new Error(data.error??'No se pudo guardar');
-      onGuardado({...sol,...data.solicitud});
-      onClose();
-    }catch(e){setError(e instanceof Error?e.message:'Error al guardar.');}
-    finally{setGuardando(false);}
   };
 
-  const iS:React.CSSProperties={width:'100%',height:38,border:'1.5px solid #e2e8f0',borderRadius:8,padding:'0 12px',fontSize:13,fontFamily:'var(--font)',color:'#1e293b',outline:'none',boxSizing:'border-box' as const,background:'white'};
-  const iSdis:React.CSSProperties={...iS,background:'#f8fafc',color:'#94a3b8'};
-  const lS:React.CSSProperties={fontSize:12,fontWeight:600,color:'#374151',display:'block',marginBottom:5};
-  const fG:React.CSSProperties={display:'flex',flexDirection:'column' as const,gap:4};
+  const fmtFechaDisplay = (r: string) => {
+    try {
+      return new Date(r)
+        .toLocaleString('es-CO', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        })
+        .replace(',', '');
+    } catch {
+      return r;
+    }
+  };
 
-  return(
-    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div style={{background:'white',borderRadius:8,width:'96vw',maxWidth:860,maxHeight:'94vh',display:'flex',flexDirection:'column',boxShadow:'0 8px 32px rgba(0,0,0,.15)',overflow:'hidden'}}>
+  const tipoInicial = (() => {
+    if (sol.sede === 'Público' || sol.sede === 'Privado') return sol.sede;
+    if ((sol.fuente || '').toLowerCase().includes('secop')) return 'Público';
+    return '';
+  })();
 
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'20px 28px 16px',borderBottom:'1px solid #f1f5f9',flexShrink:0}}>
-          <div>
-            <h3 style={{margin:0,fontSize:17,fontWeight:600,color:'#111827'}}>Editar solicitud</h3>
-            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>Solicitud #{sol.id}</div>
+  const modalidadParts = sol.modalidad?.includes(' — ')
+    ? sol.modalidad.split(' — ')
+    : [null, sol.modalidad || ''];
+
+  const subtipoInicial = modalidadParts[1] || '';
+
+  const [form, setForm] = useState({
+    fechaCreacion: fmtFechaDisplay(sol.createdAt),
+    nombrePersonal: sol.usuarioRegistro || sesion.usuario,
+    tipoProceso: tipoInicial,
+    subtipoProceso: subtipoInicial,
+    entidadGrupo: sol.perfil || '',
+    ciudad: sol.ciudad || '',
+    entidad: (() => {
+    const raw = sol.entidad || '';
+    const parts = raw.split(' - ');
+    return parts.length > 1 ? parts.slice(1).join(' - ').trim() : raw;
+    })(),
+    codigoProceso: sol.codigoProceso || '',
+    objeto: sol.objeto || '',
+    valor:
+  sol.valor != null
+    ? new Intl.NumberFormat('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        minimumFractionDigits: 0,
+      }).format(Number(sol.valor))
+    : '',
+    plataforma: sol.plataforma || '',
+    fechaCierre: fmtFechaInput(sol.fechaCierre),
+    estadoSolicitud:
+      sol.estadoSolicitud === 'Rechazada' ? 'Rechazada' : 'En revisión',
+  });
+
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+
+  const set = (f: string, v: string) =>
+    setForm((p: typeof form) => ({ ...p, [f]: v }));
+
+  const subtipos = SUBTIPOS[form.tipoProceso] || [];
+
+  const handleGuardar = async () => {
+    setError('');
+
+    if (
+      !form.tipoProceso ||
+      !form.entidadGrupo ||
+      !form.ciudad ||
+      !form.entidad ||
+      !form.codigoProceso ||
+      !form.objeto
+    ) {
+      setError('Los campos marcados con * son obligatorios.');
+      return;
+    }
+
+    setGuardando(true);
+
+    try {
+      const modalidadFinal = form.subtipoProceso
+        ? `${form.tipoProceso} — ${form.subtipoProceso}`
+        : form.tipoProceso;
+
+      const res = await fetch('/api/solicitudes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: sol.id,
+          entidad: form.entidad,
+          objeto: form.objeto,
+          modalidad: modalidadFinal,
+          perfil: form.entidadGrupo,
+          ciudad: form.ciudad,
+          plataforma: form.plataforma,
+          fechaCierre: form.fechaCierre || null,
+          body: JSON.stringify({
+          id: sol.id,
+          entidad: form.entidad,
+          objeto: form.objeto,
+          modalidad: modalidadFinal,
+          perfil: form.entidadGrupo,
+          ciudad: form.ciudad,
+          plataforma: form.plataforma,
+          fechaCierre: form.fechaCierre || null,
+          estadoSolicitud: form.estadoSolicitud,
+          }),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error ?? 'No se pudo actualizar la solicitud');
+      }
+
+      onGuardado({
+      ...sol,
+      ...data.solicitud,
+      entidad: form.entidad,
+      objeto: form.objeto,
+      modalidad: modalidadFinal,
+      perfil: form.entidadGrupo,
+      ciudad: form.ciudad,
+      plataforma: form.plataforma,
+      fechaCierre: form.fechaCierre || null,
+      estadoSolicitud: form.estadoSolicitud,
+    });
+
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al guardar.');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const iS: React.CSSProperties = {
+    width: '100%',
+    height: 38,
+    border: '1.5px solid #e2e8f0',
+    borderRadius: 8,
+    padding: '0 12px',
+    fontSize: 13,
+    fontFamily: 'var(--font)',
+    color: '#1e293b',
+    outline: 'none',
+    boxSizing: 'border-box',
+    background: 'white',
+  };
+
+  const iSdis: React.CSSProperties = {
+    ...iS,
+    background: '#f8fafc',
+    color: '#94a3b8',
+  };
+
+  const lS: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#374151',
+    display: 'block',
+    marginBottom: 5,
+  };
+
+  const fG: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
+
+  return (
+    <div
+      className="modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal-card" style={{ maxWidth: 720, width: '92%',    maxHeight: '88vh',    overflow: 'hidden', }}>
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#1E5799' }}>
+            <IcoPencil />
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#111827' }}>
+              Editar solicitud
+            </h3>
           </div>
-          <button onClick={onClose} style={{width:28,height:28,borderRadius:6,border:'1px solid #e2e8f0',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#6b7280'}}
-            onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#fef2f2';(e.currentTarget as HTMLButtonElement).style.color='#ef4444';}}
-            onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';(e.currentTarget as HTMLButtonElement).style.color='#6b7280';}}>
-            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}><path d="M18 6L6 18M6 6l12 12"/></svg>
+          <button className="modal-close-btn" onClick={onClose}>
+            <IcoClose />
           </button>
         </div>
 
-        <div style={{overflowY:'auto',flex:1,padding:'20px 28px',display:'flex',flexDirection:'column',gap:14}}>
-          {error&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,padding:'9px 12px',color:'#dc2626',fontSize:12}}>⚠️ {error}</div>}
+        {error && <div className="modal-error">{error}</div>}
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+        <div className="modal-body">
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 14,
+            }}
+          >
             <div style={fG}>
               <label style={lS}>Fecha de creación</label>
-              <input style={iSdis} value={form.fechaCreacion} readOnly/>
+              <input style={iSdis} value={form.fechaCreacion} disabled />
             </div>
-            <div style={fG}>
-              <label style={lS}>Usuario registra</label>
-              <input style={iSdis} value={form.nombrePersonal} readOnly/>
-            </div>
-          </div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
             <div style={fG}>
-              <label style={lS}>* Tipo de proceso</label>
-              <select style={iS} value={form.tipoProceso} onChange={e=>{set('tipoProceso',e.target.value);set('subtipoProceso','');}}>
-                <option value="">— Seleccione —</option>
-                {TIPOS_PROCESO.map(t=><option key={t} value={t}>{t}</option>)}
+              <label style={lS}>Registrado por</label>
+              <input style={iSdis} value={form.nombrePersonal} disabled />
+            </div>
+
+            <div style={fG}>
+              <label style={lS}>Tipo de proceso *</label>
+              <select
+                style={iS}
+                value={form.tipoProceso}
+                onChange={(e) => set('tipoProceso', e.target.value)}
+              >
+                <option value="">Seleccionar</option>
+                <option value="Público">Público</option>
+                <option value="Privado">Privado</option>
               </select>
             </div>
+
             <div style={fG}>
-              <label style={lS}>* Entidad del grupo</label>
-              <select style={iS} value={form.entidadGrupo} onChange={e=>set('entidadGrupo',e.target.value)}>
-                <option value="">— Seleccione —</option>
-                {ENTIDADES_GRUPO.map(e=><option key={e} value={e}>{e}</option>)}
+              <label style={lS}>Modalidad *</label>
+              <select
+                style={iS}
+                value={form.subtipoProceso}
+                onChange={(e) => set('subtipoProceso', e.target.value)}
+              >
+                <option value="">Seleccionar</option>
+                {subtipos.map((s: string) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
               </select>
             </div>
-          </div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
             <div style={fG}>
-              <label style={lS}>Modalidad</label>
-              <select style={form.tipoProceso?iS:iSdis} value={form.subtipoProceso} onChange={e=>set('subtipoProceso',e.target.value)} disabled={!form.tipoProceso}>
-                <option value="">— Seleccione —</option>
-                {subtipos.map(s=><option key={s} value={s}>{s}</option>)}
+              <label style={lS}>Entidad del grupo *</label>
+              <select
+                style={iS}
+                value={form.entidadGrupo}
+                onChange={(e) => set('entidadGrupo', e.target.value)}
+              >
+                <option value="">Seleccionar</option>
+                <option value="aseocolba">Aseocolba</option>
+                <option value="tempocolba">Tempocolba</option>
+                <option value="vigicolba">Vigicolba</option>
               </select>
             </div>
-            <div style={fG}>
-              <label style={lS}>* Ciudad</label>
-              <select style={iS} value={form.ciudad} onChange={e=>set('ciudad',e.target.value)}>
-                <option value="">— Seleccione —</option>
-                {CIUDADES_CO.map(c=><option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
             <div style={fG}>
-              <label style={lS}>* Cliente</label>
-              <input style={iS} placeholder="Nombre del cliente o entidad contratante" value={form.entidad} onChange={e=>set('entidad',e.target.value)}/>
+              <label style={lS}>Ciudad *</label>
+              <input
+                style={iS}
+                value={form.ciudad}
+                onChange={(e) => set('ciudad', e.target.value)}
+              />
             </div>
-            <div style={fG}>
-              <label style={lS}>* No. proceso</label>
-              <input style={iS} placeholder="Ej. MC-007-2026" value={form.codigoProceso} onChange={e=>set('codigoProceso',e.target.value)}/>
-            </div>
-          </div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+            <div style={fG}>
+              <label style={lS}>Entidad *</label>
+              <input
+                style={iS}
+                value={form.entidad}
+                onChange={(e) => set('entidad', e.target.value)}
+              />
+            </div>
+
+            <div style={fG}>
+              <label style={lS}>Código del proceso *</label>
+              <input style={iSdis} value={form.codigoProceso} disabled />
+            </div>
+
+            <div style={{ ...fG, gridColumn: '1 / -1' }}>
+              <label style={lS}>Objeto *</label>
+              <textarea
+                style={{ ...iS, height: 90, padding: 12, resize: 'vertical' }}
+                value={form.objeto}
+                onChange={(e) => set('objeto', e.target.value)}
+              />
+            </div>
+
             <div style={fG}>
               <label style={lS}>Presupuesto</label>
-              <input style={iS} placeholder="Ej. 150000000" type="text" value={form.valor} onChange={e=>set('valor',e.target.value.replace(/[^0-9]/g,''))}/>
+              <input style={iSdis} value={form.valor} disabled />
             </div>
+
             <div style={fG}>
               <label style={lS}>Plataforma</label>
-              <input style={iS} placeholder="Ej. SECOP II, Portal propio…" value={form.plataforma} onChange={e=>set('plataforma',e.target.value)}/>
+              <input
+                style={iS}
+                value={form.plataforma}
+                onChange={(e) => set('plataforma', e.target.value)}
+              />
             </div>
-          </div>
 
-          <div style={fG}>
-            <label style={lS}>* Descripción</label>
-            <textarea style={{...iS,height:80,padding:'8px 12px',resize:'vertical' as const,lineHeight:1.5}} placeholder="Descripción del objeto del contrato o proceso…" value={form.objeto} onChange={e=>set('objeto',e.target.value)}/>
-          </div>
-
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
             <div style={fG}>
-              <label style={lS}>Fecha cierre</label>
-              <input type="date" style={iS} value={form.fechaCierre} onChange={e=>set('fechaCierre',e.target.value)}/>
+              <label style={lS}>Fecha de cierre</label>
+              <input
+                type="date"
+                style={iS}
+                value={form.fechaCierre}
+                onChange={(e) => set('fechaCierre', e.target.value)}
+              />
             </div>
-            <div/>
+
+            <div style={fG}>
+              <label style={lS}>Estado de la solicitud *</label>
+              <select
+                style={iS}
+                value={form.estadoSolicitud}
+                onChange={(e) => set('estadoSolicitud', e.target.value)}
+              >
+                <option value="En revisión">En revisión</option>
+                <option value="Rechazada">Rechazada</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,padding:'16px 28px',borderTop:'1px solid #f1f5f9',background:'white',flexShrink:0}}>
-          <button onClick={handleGuardar} disabled={guardando} style={{height:38,padding:'0 32px',borderRadius:6,background:guardando?'#6b93c4':'#2563eb',color:'white',border:'none',fontSize:13,fontWeight:600,fontFamily:'var(--font)',cursor:guardando?'not-allowed':'pointer'}}>
-            {guardando?'Guardando…':'Guardar'}
+        <div className="modal-actions">
+          <button className="modal-btn-cancel" onClick={onClose} disabled={guardando}>
+            Cancelar
           </button>
-          <button onClick={()=>{try{localStorage.removeItem(DRAFT_KEY);}catch{/**/}onClose();}} disabled={guardando} style={{height:38,padding:'0 24px',borderRadius:6,border:'1px solid #e2e8f0',background:'white',color:'#374151',fontSize:13,fontFamily:'var(--font)',cursor:'pointer'}}>Cancelar</button>
+          <button className="modal-btn-save" onClick={handleGuardar} disabled={guardando}>
+            {guardando ? 'Guardando…' : 'Guardar cambios'}
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
 /* ══════════════════════════════════════════════════════════════
    MODAL CREAR SOLICITUD MANUAL
 ══════════════════════════════════════════════════════════════ */
@@ -1529,6 +1704,7 @@ function ModalCrearSolicitud({sesion,onClose,onCreada}:{sesion:Sesion;onClose:()
   const formInicial = {
     fechaSolicitud: ahora,
     nombrePersonal: sesion.usuario,
+    origenSolicitud: 'Comercial',
     tipoProceso:'',
     subtipoProceso:'',
     entidadGrupo:'',
@@ -1588,7 +1764,13 @@ function ModalCrearSolicitud({sesion,onClose,onCreada}:{sesion:Sesion;onClose:()
       const modalidadFinal = form.subtipoProceso
         ? `${form.tipoProceso} — ${form.subtipoProceso}`
         : form.tipoProceso;
-      const observacionFinal = form.uen ? `UEN: ${form.uen}` : null;
+      const observacionFinal =
+  [
+    form.uen ? `UEN: ${form.uen}` : '',
+    form.origenSolicitud ? `Origen solicitud: ${form.origenSolicitud}` : '',
+  ]
+    .filter(Boolean)
+    .join(' | ') || null;
 
       const res=await fetch('/api/solicitudes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         codigoProceso:   form.codigoProceso,
@@ -1644,6 +1826,21 @@ function ModalCrearSolicitud({sesion,onClose,onCreada}:{sesion:Sesion;onClose:()
         <div style={{overflowY:'auto',flex:1,padding:'20px 28px',display:'flex',flexDirection:'column',gap:14}}>
           {error&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,padding:'9px 12px',color:'#dc2626',fontSize:12}}>⚠️ {error}</div>}
           {tieneBorrador&&<div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:6,padding:'9px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}><span style={{fontSize:12,color:'#92400e'}}>📋 Se restauró un borrador guardado automáticamente.</span><button onClick={()=>{try{localStorage.removeItem(DRAFT_KEY);}catch{/**/}setForm({...formInicial,fechaSolicitud:ahora,nombrePersonal:sesion.usuario});setTieneBorrador(false);}} style={{fontSize:11,color:'#92400e',background:'none',border:'1px solid #fde68a',borderRadius:4,padding:'2px 8px',cursor:'pointer',fontFamily:'var(--font)'}}>Descartar</button></div>}
+
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={fG}>
+        <label style={lS}>* Origen de la solicitud</label>
+        <select
+          style={iS}
+          value={form.origenSolicitud}
+          onChange={(e) => set('origenSolicitud', e.target.value)}
+        >
+          <option value="Comercial">Comercial</option>
+          <option value="Especializada">Especializada</option>
+        </select>
+      </div>
+      <div />
+    </div>
 
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
             <div style={fG}>
@@ -1750,11 +1947,30 @@ const VARIANTE_CONFIG:Record<VarianteSolicitudes,{titulo:string;emptyMsg:string}
    COMERCIAL    = tiene codigoProceso  (viene de Búsqueda de procesos, no es manual)
    ESPECIALIZADA = no tiene codigoProceso (creada manualmente)
    Se reemplaza fácilmente cuando se agregue s.origenSolicitud al modelo */
-function matchVariante(s:Solicitud, variante:VarianteSolicitudes):boolean {
-  if(variante==='TODAS') return true;
-  if(variante==='RECHAZADA') return (s.estadoSolicitud||'').toLowerCase().includes('rechazad');
-  const tieneOrigen = !!(s.codigoProceso && s.codigoProceso.trim());
-  return variante==='COMERCIAL' ? tieneOrigen : !tieneOrigen;
+function matchVariante(s: Solicitud, variante: VarianteSolicitudes): boolean {
+  const estado = (s.estadoSolicitud || '').toLowerCase();
+  const fuente = (s.fuente || '').toLowerCase();
+  const plataforma = (s.plataforma || '').toLowerCase();
+
+  if (variante === 'TODAS') return true;
+
+  if (variante === 'RECHAZADA') {
+    return estado.includes('rechazad');
+  }
+
+  const esManual =
+    fuente.includes('manual') ||
+    plataforma.includes('manual');
+
+  if (variante === 'COMERCIAL') {
+    return !esManual;
+  }
+
+  if (variante === 'ESPECIALIZADA') {
+    return esManual;
+  }
+
+  return true;
 }
 
 function ModuloSolicitudesAbiertasBase({sesion,variante}:{sesion:Sesion;variante:VarianteSolicitudes}){
@@ -1768,17 +1984,34 @@ function ModuloSolicitudesAbiertasBase({sesion,variante}:{sesion:Sesion;variante
   const [modalCrear,setModalCrear]=useState(false);
   const [modalEditar,setModalEditar]=useState<Solicitud|null>(null);
 
-  const cargar=useCallback(async()=>{
-    setCargando(true);setError('');
-    try{
-      const estadoQuery=variante==='RECHAZADA'?'Rechazada':'En%20revisi%C3%B3n';
-      const res=await fetch(`/api/solicitudes?estado=${estadoQuery}&limit=200`);
-      const data=await res.json();
-      if(!res.ok||!data.ok){setError(data.error??'Error al cargar solicitudes.');return;}
-      setSolicitudes((data.solicitudes??[]).slice().sort((a:Solicitud,b:Solicitud)=>a.id-b.id));
-    }catch{setError('No se pudo conectar.');}
-    finally{setCargando(false);}
-  },[]);
+const cargar = useCallback(async () => {
+  setCargando(true);
+  setError('');
+
+  try {
+    let url = '/api/solicitudes?limit=200';
+
+    if (variante === 'RECHAZADA') {
+      url += '&estado=Rechazada';
+    } else if (variante === 'COMERCIAL' || variante === 'ESPECIALIZADA') {
+      url += '&estado=En%20revisi%C3%B3n';
+    }
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      setError(data.error ?? 'Error al cargar solicitudes.');
+      return;
+    }
+
+    setSolicitudes((data.solicitudes ?? []).slice().sort((a: Solicitud, b: Solicitud) => a.id - b.id));
+  } catch {
+    setError('No se pudo conectar.');
+  } finally {
+    setCargando(false);
+  }
+}, [variante]);
   useEffect(()=>{cargar();},[cargar]);
 
   /* Primero filtrar por variante, luego por búsqueda */
@@ -1950,7 +2183,7 @@ function ModuloSolicitudesAbiertasBase({sesion,variante}:{sesion:Sesion;variante
 }
 
 /* ── Wrappers de variante — reutilizan la base sin duplicar código ── */
-function ModuloSolicitudesAbiertas({sesion}:{sesion:Sesion}){return<ModuloSolicitudesAbiertasBase sesion={sesion} variante="TODAS"/>;}
+function ModuloSolicitudesTodas({sesion}:{sesion:Sesion}){return<ModuloSolicitudesAbiertasBase sesion={sesion} variante="TODAS"/>;}
 function ModuloSolicitudesRechazadas({sesion}:{sesion:Sesion}){return<ModuloSolicitudesAbiertasBase sesion={sesion} variante="RECHAZADA"/>;}
 function ModuloSolicitudesComercial({sesion}:{sesion:Sesion}){return<ModuloSolicitudesAbiertasBase sesion={sesion} variante="COMERCIAL"/>;}
 function ModuloSolicitudesEspecializada({sesion}:{sesion:Sesion}){return<ModuloSolicitudesAbiertasBase sesion={sesion} variante="ESPECIALIZADA"/>;}
@@ -2525,12 +2758,12 @@ export default function LicycolbaPage(){
     switch(activeModule){
       case 'procesosNuevos':        return<ModuloProcesoNuevos sesion={sesion} onModuleChange={setActiveModule}/>;
       case 'busquedaFinal':         return<ModuloBusquedaFinal onModuleChange={setActiveModule} sesion={sesion}/>
-      case 'solicitudesAbiertas':   return<ModuloSolicitudesAbiertas sesion={sesion}/>;
+      case 'solicitudesAbiertas':   return<ModuloSolicitudesComercial sesion={sesion}/>;
       case 'solicitudesComercial':   return<ModuloSolicitudesComercial sesion={sesion}/>;
       case 'solicitudesEspecializada': return<ModuloSolicitudesEspecializada sesion={sesion}/>;
       case 'solicitudesRechazadas': return<ModuloSolicitudesRechazadas sesion={sesion}/>
       case 'solicitudesEliminadas': return<ModuloSolicitudesEliminadas/>;
-      case 'solicitudesTodas':      return<Placeholder nombre="Todas las solicitudes"/>;
+      case 'solicitudesTodas':      return<ModuloSolicitudesTodas sesion={sesion} />;
       case 'usuarios':              return<ModuloUsuarios sesion={sesion} onSesionActualizada={handleSesionActualizada}/>;
       case 'usuariosEliminados':    return<ModuloUsuariosEliminados/>;
       case 'examenesMedicos':       return<ModuloExamenesMedicos/>;

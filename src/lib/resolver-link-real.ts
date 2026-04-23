@@ -1,40 +1,79 @@
 import { chromium } from 'playwright';
 
-function extraerUrls(texto: string): string[] {
-  const matches = texto.match(/https?:\/\/[^\s"'<>]+/g) ?? [];
-  return [...new Set(matches)];
+function limpiarUrl(url: string): string {
+  return url
+    .trim()
+    .replace(/[)"'>\]]+$/, '')
+    .replace(/&amp;/g, '&');
 }
 
-function isSecop1Url(url: string): boolean {
+function extraerUrls(texto: string): string[] {
+  const matches = texto.match(/https?:\/\/[^\s"'<>]+/g) ?? [];
+  return [...new Set(matches.map(limpiarUrl))];
+}
+
+function esSecop1Url(url: string): boolean {
   return url.includes('contratos.gov.co/consultas/detalleProceso.do?numConstancia=');
 }
 
-function isSecop2DetailUrl(url: string): boolean {
-  return url.includes('/Public/Tendering/OpportunityDetail/Index?noticeUID=');
+function esSecop2Url(url: string): boolean {
+  return (
+    url.includes('/Public/Tendering/OpportunityDetail/Index?noticeUID=') ||
+    url.includes('/CO1BusinessLine/Tendering/ContractNoticeView/Index?')
+  );
 }
 
-function isSecop2SearchUrl(url: string): boolean {
+function esSecop2SearchUrl(url: string): boolean {
   return (
     url.includes('/Public/Tendering/ContractNoticeManagement/Index') ||
     url.includes('searchText=')
   );
 }
 
-function isLicitacionesInfoUrl(url: string): boolean {
+function esLicitacionesInfoUrl(url: string): boolean {
   return url.includes('licitaciones.info');
 }
 
-function priorizarUrl(urls: string[]): string | null {
-  const limpias = urls.map((u) => u.trim());
+function esBasura(url: string): boolean {
+  const u = url.toLowerCase();
 
-  const secop2 = limpias.find(isSecop2DetailUrl);
+  return (
+    u.includes('play.google.com') ||
+    u.includes('apps.apple.com') ||
+    u.includes('itunes.apple.com') ||
+    u.includes('facebook.com') ||
+    u.includes('instagram.com') ||
+    u.includes('linkedin.com') ||
+    u.includes('twitter.com') ||
+    u.includes('youtube.com') ||
+    u.includes('wa.me') ||
+    u.includes('mailto:') ||
+    u.includes('cdnjs.cloudflare.com') ||
+    u.includes('cdn.jsdelivr.net') ||
+    u.includes('bootstrap-tour') ||
+    u.includes('daterangepicker.css') ||
+    u.includes('setcon.licitacionesinfo')
+  );
+}
+
+function esCandidatoUtil(url: string): boolean {
+  const u = limpiarUrl(url);
+  if (!/^https?:\/\//i.test(u)) return false;
+  if (esBasura(u)) return false;
+  return true;
+}
+
+function priorizarUrl(urls: string[]): string | null {
+  const limpias = [...new Set(urls.map(limpiarUrl).filter(esCandidatoUtil))];
+
+  const secop2 = limpias.find(esSecop2Url);
   if (secop2) return secop2;
 
-  const secop1 = limpias.find(isSecop1Url);
+  const secop1 = limpias.find(esSecop1Url);
   if (secop1) return secop1;
 
   const privada = limpias.find(
-    (u) => !isLicitacionesInfoUrl(u) && !isSecop2SearchUrl(u)
+    (u) => !esLicitacionesInfoUrl(u) && !esSecop2SearchUrl(u)
   );
   if (privada) return privada;
 
@@ -42,41 +81,39 @@ function priorizarUrl(urls: string[]): string | null {
 }
 
 export async function resolverLinkRealDesdeLicitacionesInfo(url: string): Promise<string> {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    timeout: 15000,
+  });
+
   const page = await browser.newPage();
-
-  const encontrados = new Set<string>();
-
-  page.on('request', (req) => {
-    const u = req.url();
-    if (u.startsWith('http')) encontrados.add(u);
-  });
-
-  page.on('response', (res) => {
-    const u = res.url();
-    if (u.startsWith('http')) encontrados.add(u);
-  });
+  page.setDefaultTimeout(12000);
+  page.setDefaultNavigationTimeout(12000);
 
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.waitForTimeout(5000);
+    console.log('[resolver-link-real] Abriendo:', url);
 
-    const html = await page.content();
-    for (const u of extraerUrls(html)) encontrados.add(u);
+    await page.goto(url, {
+      waitUntil: 'domcontentloaded',
+      timeout: 12000,
+    }).catch(() => null);
 
-    const hrefs = await page.$$eval('a', (anchors) =>
-      anchors.map((a) => (a as HTMLAnchorElement).href).filter(Boolean)
-    );
-    for (const u of hrefs) encontrados.add(u);
+    await page.waitForTimeout(4000);
 
-    const scripts = await page.$$eval('script', (nodes) =>
-      nodes.map((n) => n.textContent || '').join('\n')
-    );
-    for (const u of extraerUrls(scripts)) encontrados.add(u);
+    const bodyText = await page.locator('body').innerText().catch(() => '');
+    const urls = extraerUrls(bodyText);
 
-    const elegida = priorizarUrl([...encontrados]);
-    return elegida ?? url;
+    const elegida = priorizarUrl(urls);
+
+    if (elegida) {
+      console.log('[resolver-link-real] Link elegido desde texto visible:', elegida);
+      return elegida;
+    }
+
+    console.log('[resolver-link-real] No se encontró link mejor, se deja original');
+    return url;
   } finally {
-    await browser.close();
+    await page.close().catch(() => null);
+    await browser.close().catch(() => null);
   }
 }

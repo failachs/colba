@@ -85,9 +85,9 @@ model Proceso {
 }
 
 model ProcesoDetalleSecop {
-  id                      Int       @id @default(autoincrement())
-  procesoId               Int       @unique
-  proceso                 Proceso   @relation(fields: [procesoId], references: [id], onDelete: Cascade)
+  id        Int     @id @default(autoincrement())
+  procesoId Int     @unique
+  proceso   Proceso @relation(fields: [procesoId], references: [id], onDelete: Cascade)
 
   urlConsulta             String?
   urlFinal                String?
@@ -121,9 +121,9 @@ model ProcesoDetalleSecop {
 }
 
 model ProcesoCronogramaSecop {
-  id          Int       @id @default(autoincrement())
-  procesoId   Int
-  proceso     Proceso   @relation(fields: [procesoId], references: [id], onDelete: Cascade)
+  id        Int     @id @default(autoincrement())
+  procesoId Int
+  proceso   Proceso @relation(fields: [procesoId], references: [id], onDelete: Cascade)
 
   evento      String
   valorTexto  String?
@@ -139,9 +139,9 @@ model ProcesoCronogramaSecop {
 }
 
 model ProcesoDocumentoSecop {
-  id             Int       @id @default(autoincrement())
-  procesoId      Int
-  proceso        Proceso   @relation(fields: [procesoId], references: [id], onDelete: Cascade)
+  id        Int     @id @default(autoincrement())
+  procesoId Int
+  proceso   Proceso @relation(fields: [procesoId], references: [id], onDelete: Cascade)
 
   nombre         String
   urlDocumento   String?
@@ -152,11 +152,11 @@ model ProcesoDocumentoSecop {
   mimeType       String?
   tamanoBytes    Int?
   textoExtraido  String?
-  descargado     Boolean   @default(false)
-  procesado      Boolean   @default(false)
-  fechaDetectado DateTime  @default(now())
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  descargado     Boolean  @default(false)
+  procesado      Boolean  @default(false)
+  fechaDetectado DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([procesoId])
   @@index([nombre])
@@ -165,14 +165,14 @@ model ProcesoDocumentoSecop {
 }
 
 model ProcesoSnapshotSecop {
-  id            Int       @id @default(autoincrement())
-  procesoId     Int
-  proceso       Proceso   @relation(fields: [procesoId], references: [id], onDelete: Cascade)
+  id        Int     @id @default(autoincrement())
+  procesoId Int
+  proceso   Proceso @relation(fields: [procesoId], references: [id], onDelete: Cascade)
 
   urlConsulta   String?
   hashContenido String?
   payloadJson   Json
-  creadoEn      DateTime  @default(now())
+  creadoEn      DateTime @default(now())
 
   @@index([procesoId])
   @@index([creadoEn])
@@ -228,6 +228,7 @@ model Solicitud {
   linkDetalle      String?
   linkSecop        String?
   linkSecopReg     String?
+  origenSolicitud  String    @default("Comercial")
   estadoSolicitud  String    @default("En revisión")
   observacion      String?
   ciudad           String?
@@ -255,8 +256,8 @@ model Solicitud {
   resultadoFinal   String?
   causalCierre     String?
 
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([estadoSolicitud])
   @@index([codigoProceso])
@@ -267,8 +268,8 @@ model Solicitud {
 }
 
 model DeletedSolicitud {
-  id               Int       @id @default(autoincrement())
-  originalId       Int?
+  id         Int  @id @default(autoincrement())
+  originalId Int?
 
   procesoId        Int?
   procesoSourceKey String?
@@ -295,6 +296,7 @@ model DeletedSolicitud {
   sede             String?
   plataforma       String?
   fechaCierre      DateTime?
+  origenSolicitud  String    @default("Comercial")
   procStep         Int       @default(0)
   procData         Json      @default("{}")
   obsData          Json      @default("[]")
@@ -316,10 +318,10 @@ model DeletedSolicitud {
   resultadoFinal   String?
   causalCierre     String?
 
-  createdAt        DateTime?
-  updatedAt        DateTime?
+  createdAt DateTime?
+  updatedAt DateTime?
 
-  deletedAt        DateTime  @default(now())
+  deletedAt        DateTime @default(now())
   deletedByUsuario String?
   deletedByEmail   String?
 }

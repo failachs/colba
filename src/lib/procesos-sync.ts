@@ -7,7 +7,6 @@ import {
   normalizarProceso,
 } from '@/lib/licitaciones-info';
 import type { LiciProcesoRaw } from '@/lib/licitaciones-info';
-import { resolverLinkRealDesdeLicitacionesInfo } from '@/lib/resolver-link-real';
 
 export interface SyncMetrics {
   ok: boolean;
@@ -113,10 +112,6 @@ function buildSourceKey(raw: LiciProcesoRaw, p: ReturnType<typeof normalizarProc
   return `raw:${crypto.createHash('md5').update(JSON.stringify(raw)).digest('hex')}`;
 }
 
-function esLinkLicitacionesInfo(url: string | null | undefined): boolean {
-  return String(url ?? '').includes('licitaciones.info/detalle-contrato');
-}
-
 export async function sincronizarProcesos(params?: {
   maxResultados?: number;
   limitPorPagina?: number;
@@ -210,46 +205,17 @@ export async function sincronizarProcesos(params?: {
 
     for (const raw of procesosRaw) {
       try {
-        let p = normalizarProceso(raw);
-
-        // Primero revisamos existencia con el sourceKey original normalizado
-        const sourceKeyInicial = buildSourceKey(raw, p);
+        const p = normalizarProceso(raw);
+        const sourceKey = buildSourceKey(raw, p);
+        const hashContenido = hashProceso(p);
 
         const existing = await prisma.proceso.findUnique({
-          where: { sourceKey: sourceKeyInicial },
+          where: { sourceKey },
           select: {
             id: true,
             hashContenido: true,
           },
         });
-
-        // Resolver link real SOLO para procesos nuevos
-        if (!existing && esLinkLicitacionesInfo(p.linkDetalle)) {
-          try {
-            const linkReal = await resolverLinkRealDesdeLicitacionesInfo(p.linkDetalle);
-
-            if (linkReal && linkReal !== p.linkDetalle) {
-              p = {
-                ...p,
-                linkDetalle: linkReal,
-                linkSecop:
-                  p.linkSecop ||
-                  (linkReal.includes('secop.gov.co') || linkReal.includes('contratos.gov.co')
-                    ? linkReal
-                    : ''),
-              };
-            }
-          } catch (errResolver) {
-            const msg = `Resolviendo link real (${p.codigoProceso ?? 'sin-codigo'}): ${
-              errResolver instanceof Error ? errResolver.message : String(errResolver)
-            }`;
-            metrics.errores.push(msg);
-            console.error('[sync][resolver-link-real]', msg);
-          }
-        }
-
-        const sourceKey = buildSourceKey(raw, p);
-        const hashContenido = hashProceso(p);
 
         const data = {
           sourceKey,
@@ -286,25 +252,25 @@ export async function sincronizarProcesos(params?: {
               where: { sourceKey },
               update: {},
               create: {
-                procesoId:        creado.id,
+                procesoId: creado.id,
                 sourceKey,
-                codigoProceso:    data.codigoProceso,
-                nombre:           data.nombre,
-                entidad:          data.entidad,
-                objeto:           data.objeto,
-                fuente:           data.fuente,
-                aliasFuente:      data.aliasFuente,
-                modalidad:        data.modalidad,
-                perfil:           data.perfil,
-                departamento:     data.departamento,
-                estadoFuente:     data.estadoFuente,
+                codigoProceso: data.codigoProceso,
+                nombre: data.nombre,
+                entidad: data.entidad,
+                objeto: data.objeto,
+                fuente: data.fuente,
+                aliasFuente: data.aliasFuente,
+                modalidad: data.modalidad,
+                perfil: data.perfil,
+                departamento: data.departamento,
+                estadoFuente: data.estadoFuente,
                 fechaPublicacion: data.fechaPublicacion,
                 fechaVencimiento: data.fechaVencimiento,
-                valor:            data.valor,
-                linkDetalle:      data.linkDetalle,
-                linkSecop:        data.linkSecop,
-                linkSecopReg:     data.linkSecopReg,
-                fechaDeteccion:   new Date(),
+                valor: data.valor,
+                linkDetalle: data.linkDetalle,
+                linkSecop: data.linkSecop,
+                linkSecopReg: data.linkSecopReg,
+                fechaDeteccion: new Date(),
               },
             });
             metrics.nuevosRegistrados++;
@@ -313,14 +279,12 @@ export async function sincronizarProcesos(params?: {
             metrics.errores.push(msg);
             console.error('[sync][ProcesoNuevo]', msg);
           }
-
         } else if (existing.hashContenido !== hashContenido) {
           await prisma.proceso.update({
             where: { id: existing.id },
             data,
           });
           metrics.actualizados++;
-
         } else {
           await prisma.proceso.update({
             where: { id: existing.id },

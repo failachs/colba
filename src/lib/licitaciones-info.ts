@@ -3,78 +3,124 @@
  */
 
 export interface LiciPerfil {
-  id_perfil:     number;
+  id_perfil: number;
   nombre_perfil: string;
 }
 
 export interface LiciCronograma {
   nombre?: string;
-  fecha?:  string;
+  fecha?: string;
   [key: string]: unknown;
 }
 
 export interface LiciDocumento {
-  nombre?:           string;
-  ruta?:             string;
-  url?:              string;
-  tipo?:             string;
-  extension?:        string;
-  tamano?:           string;
-  size?:             number;
+  nombre?: string;
+  ruta?: string;
+  url?: string;
+  tipo?: string;
+  extension?: string;
+  tamano?: string;
+  size?: number;
   fechaPublicacion?: string;
   [key: string]: unknown;
 }
 
 export interface LiciProcesoRaw {
-  idContrato?:              number;
-  Nombre?:                  string;
-  CodigoProceso?:           string;
-  FechaPublicacion?:        string | null;
-  FechaVencimiento?:        string | null;
-  EntidadContratante?:      string;
-  Objeto?:                  string;
-  Valor?:                   string | number | null;
-  TextoDepartamento?:       string;
-  estado_agrupado?:         string;
-  alias_fuente?:            string;
-  nombre_fuente?:           string | null;
-  link?:                    string;
-  tipo?:                    number;
-  _perfil?:                 string;
-  UrlFuente?:               string;
-  url_fuente?:              string;
-  LinkFuente?:              string;
-  link_fuente?:             string;
-  UrlFuenteRegistrado?:     string;
-  url_fuente_registrado?:   string;
-  LinkFuenteRegistrado?:    string;
-  link_fuente_registrado?:  string;
-  fuentes?:                 Array<{ nombre?: string; url?: string; link?: string; registrado?: boolean; [k: string]: unknown }>;
-  Documentos?:              Array<{ Nombre?: string; nombre?: string; Url?: string; url?: string; Ruta?: string; ruta?: string; [k: string]: unknown }>;
-  documentos?:              Array<{ Nombre?: string; nombre?: string; Url?: string; url?: string; Ruta?: string; ruta?: string; [k: string]: unknown }>;
-  TotalDocumentos?:         number;
-  total_documentos?:        number;
-  Cronograma?:              Array<{ Nombre?: string; nombre?: string; Fecha?: string; fecha?: string; [k: string]: unknown }>;
-  cronograma?:              Array<{ Nombre?: string; nombre?: string; Fecha?: string; fecha?: string; [k: string]: unknown }>;
-  Fechas?:                  Array<{ Nombre?: string; nombre?: string; Fecha?: string; fecha?: string; [k: string]: unknown }>;
-  fechas?:                  Array<{ Nombre?: string; nombre?: string; Fecha?: string; fecha?: string; [k: string]: unknown }>;
+  idContrato?: number;
+  Nombre?: string;
+  CodigoProceso?: string;
+  FechaPublicacion?: string | null;
+  FechaVencimiento?: string | null;
+  EntidadContratante?: string;
+  Objeto?: string;
+  Valor?: string | number | null;
+  TextoDepartamento?: string;
+  estado_agrupado?: string;
+
+  // fuente / portal
+  alias_fuente?: string;
+  nombre_fuente?: string | null;
+  nombre?: string | null;
+  modalidad?: string;
+  tipo?: number | string | null;
+
+  // links reales desde API
+  Link?: string;
+  LinkDocumento?: string | null;
+  Random?: string;
+  idUltimaFase?: string | null;
+  url_secop2_registrados?: string | null;
+
+  // auxiliares
+  _perfil?: string;
+  UrlFuente?: string;
+  url_fuente?: string;
+  LinkFuente?: string;
+  link_fuente?: string;
+  UrlFuenteRegistrado?: string;
+  url_fuente_registrado?: string;
+  LinkFuenteRegistrado?: string;
+  link_fuente_registrado?: string;
+
+  fuentes?: Array<{
+    nombre?: string;
+    url?: string;
+    link?: string;
+    registrado?: boolean;
+    [k: string]: unknown;
+  }>;
+
+  Documentos?: Array<{
+    Nombre?: string;
+    nombre?: string;
+    Url?: string;
+    url?: string;
+    Ruta?: string;
+    ruta?: string;
+    [k: string]: unknown;
+  }>;
+
+  documentos?: Array<{
+    Nombre?: string;
+    nombre?: string;
+    Url?: string;
+    url?: string;
+    Ruta?: string;
+    ruta?: string;
+    [k: string]: unknown;
+  }>;
+
+  Cronograma?: Array<{
+    Nombre?: string;
+    nombre?: string;
+    Fecha?: string;
+    fecha?: string;
+    [k: string]: unknown;
+  }>;
+
+  cronograma?: Array<{
+    Nombre?: string;
+    nombre?: string;
+    Fecha?: string;
+    fecha?: string;
+    [k: string]: unknown;
+  }>;
+
   [key: string]: unknown;
 }
 
 export interface LiciProcesosApiResponse {
   success?: boolean;
-  count?:   number;
-  total?:   number;
-  data?:    LiciProcesoRaw[];
+  count?: number;
+  total?: number;
+  data?: LiciProcesoRaw[];
   [key: string]: unknown;
 }
 
-// ── Config ──────────────────────────────────────────────────────────────────
-
 const PERFILES_DEFAULT: LiciPerfil[] = [
-  { id_perfil: 843884, nombre_perfil: 'Vigicolba'  },
+  { id_perfil: 843884, nombre_perfil: 'Vigicolba' },
   { id_perfil: 843918, nombre_perfil: 'Tempocolba' },
-  { id_perfil: 843818, nombre_perfil: 'Aseocolba'  },
+  { id_perfil: 843818, nombre_perfil: 'Aseocolba' },
 ];
 
 const PERFILES_OBJETIVO = ['vigicolba', 'tempocolba', 'failach', 'aseocolba'];
@@ -91,8 +137,8 @@ function invalidarToken() {
 }
 
 function cfg() {
-  const base     = process.env.LICI_INFO_BASE_URL?.replace(/\/$/, '');
-  const email    = process.env.LICI_INFO_EMAIL;
+  const base = process.env.LICI_INFO_BASE_URL?.replace(/\/$/, '');
+  const email = process.env.LICI_INFO_EMAIL;
   const password = process.env.LICI_INFO_PASSWORD;
 
   if (!base || !email || !password) {
@@ -102,10 +148,8 @@ function cfg() {
   return { base, email, password };
 }
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
 async function readJson<T>(res: Response, ctx: string): Promise<T> {
-  const ct  = (res.headers.get('content-type') || '').toLowerCase();
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
   const raw = await res.text();
 
   if (raw.trimStart().startsWith('<')) {
@@ -126,8 +170,6 @@ async function readJson<T>(res: Response, ctx: string): Promise<T> {
     throw new Error(`[${ctx}] JSON inválido (HTTP ${res.status}): ${raw.slice(0, 200)}`);
   }
 }
-
-// ── Login ────────────────────────────────────────────────────────────────────
 
 export async function liciLogin(): Promise<string> {
   if (tokenVigente()) return _tokenCache!.value;
@@ -180,8 +222,6 @@ export async function liciLogin(): Promise<string> {
   return _tokenCache.value;
 }
 
-// ── Perfiles ─────────────────────────────────────────────────────────────────
-
 export async function liciGetPerfiles(): Promise<LiciPerfil[]> {
   const { base } = cfg();
   let token = await liciLogin();
@@ -202,7 +242,7 @@ export async function liciGetPerfiles(): Promise<LiciPerfil[]> {
   if (res.status === 401) {
     invalidarToken();
     token = await liciLogin();
-    res   = await fetchPerfiles(token);
+    res = await fetchPerfiles(token);
   }
 
   if (!res.ok) {
@@ -218,9 +258,7 @@ export async function liciGetPerfiles(): Promise<LiciPerfil[]> {
       ? (data as { perfiles: LiciPerfil[] }).perfiles
       : Array.isArray((data as { data?: unknown[] }).data)
         ? (data as { data: LiciPerfil[] }).data
-        : Array.isArray((data as { results?: unknown[] }).results)
-          ? (data as { results: LiciPerfil[] }).results
-          : PERFILES_DEFAULT;
+        : PERFILES_DEFAULT;
 }
 
 export function filtrarPerfilesObjetivo(perfiles: LiciPerfil[]): LiciPerfil[] {
@@ -229,15 +267,13 @@ export function filtrarPerfilesObjetivo(perfiles: LiciPerfil[]): LiciPerfil[] {
   );
 }
 
-// ── Procesos ──────────────────────────────────────────────────────────────────
-
 export async function liciGetProcesos(params: {
-  perfiles:           string;
-  page?:              number;
-  limit?:             number;
-  filtrarNuevos?:     boolean;
-  query?:             string;
-  ascending?:         0 | 1;
+  perfiles: string;
+  page?: number;
+  limit?: number;
+  filtrarNuevos?: boolean;
+  query?: string;
+  ascending?: 0 | 1;
   camposAdicionales?: string;
 }): Promise<LiciProcesosApiResponse> {
   const { base } = cfg();
@@ -250,16 +286,16 @@ export async function liciGetProcesos(params: {
 
   const buildBody = (t: string) => {
     const body: Record<string, unknown> = {
-      token:    t,
+      token: t,
       perfiles: params.perfiles,
-      page:     params.page ?? 1,
-      limit:    Math.min(params.limit ?? 10, 30),
+      page: params.page ?? 1,
+      limit: Math.min(params.limit ?? 10, 30),
     };
 
-    if (params.filtrarNuevos)                    body.filtrar_nuevos     = 1;
-    if (params.query?.trim())                    body.query              = params.query.trim();
-    if (typeof params.ascending !== 'undefined') body.ascending          = params.ascending;
-    if (params.camposAdicionales?.trim())        body.campos_adicionales = params.camposAdicionales.trim();
+    if (params.filtrarNuevos) body.filtrar_nuevos = 1;
+    if (params.query?.trim()) body.query = params.query.trim();
+    if (typeof params.ascending !== 'undefined') body.ascending = params.ascending;
+    if (params.camposAdicionales?.trim()) body.campos_adicionales = params.camposAdicionales.trim();
 
     return JSON.stringify(body);
   };
@@ -282,7 +318,7 @@ export async function liciGetProcesos(params: {
   if (res.status === 401) {
     invalidarToken();
     token = await liciLogin();
-    res   = await fetchProcesos(token);
+    res = await fetchProcesos(token);
   }
 
   const data = await readJson<LiciProcesosApiResponse>(res, 'liciGetProcesos');
@@ -294,237 +330,92 @@ export async function liciGetProcesos(params: {
   return data;
 }
 
-// ── Paginación automática ─────────────────────────────────────────────────────
-
-export async function liciGetTodosProcesos(params: {
-  perfiles:           string;
-  limitPorPagina?:    number;
-  maxResultados?:     number;
-  delayMs?:           number;
-  filtrarNuevos?:     boolean;
-  query?:             string;
-  ascending?:         0 | 1;
-  camposAdicionales?: string;
-}): Promise<{ procesos: LiciProcesoRaw[]; paginasConsultadas: number; totalApi: number }> {
-  const limit = Math.min(params.limitPorPagina ?? 10, 30);
-  const max   = params.maxResultados ?? 300;
-  const delay = params.delayMs ?? 800;
-
-  let page = 1;
-  let pages = 0;
-  let total = 0;
-  const acc: LiciProcesoRaw[] = [];
-
-  while (true) {
-    if (page > 1) await sleep(delay);
-
-    const resp = await liciGetProcesos({ ...params, page, limit });
-    pages++;
-
-    const lote: LiciProcesoRaw[] = Array.isArray(resp.data) ? resp.data : [];
-
-    if (page === 1) {
-      total = resp.count ?? resp.total ?? lote.length;
-    }
-
-    acc.push(...lote);
-
-    if (
-      !lote.length ||
-      lote.length < limit ||
-      acc.length >= max ||
-      (total > 0 && acc.length >= total) ||
-      pages >= 200
-    ) {
-      break;
-    }
-
-    page++;
-  }
-
-  return {
-    procesos: acc.slice(0, max),
-    paginasConsultadas: pages,
-    totalApi: total,
-  };
-}
-
-// ── Helpers de links ─────────────────────────────────────────────────────────
-
 function normalizeUrl(url: unknown): string {
-  return String(url ?? '').trim();
+  return String(url ?? '').trim().replace(/&amp;/g, '&');
 }
 
-function pickFirstNonEmpty(...values: Array<unknown>): string {
-  for (const value of values) {
-    const s = normalizeUrl(value);
-    if (s) return s;
-  }
-  return '';
+function construirLinkRegistradosSecop2(base: unknown, notice: unknown): string {
+  const baseStr = normalizeUrl(base);
+  const noticeStr = normalizeUrl(notice);
+
+  if (!baseStr || !noticeStr) return '';
+
+  return `${baseStr}${noticeStr}`;
 }
-
-function isSecop1Url(url: string): boolean {
-  return url.includes('contratos.gov.co/consultas/detalleProceso.do?numConstancia=');
-}
-
-function isSecop2DetailUrl(url: string): boolean {
-  return url.includes('/Public/Tendering/OpportunityDetail/Index?noticeUID=');
-}
-
-function isSecop2SearchUrl(url: string): boolean {
-  return (
-    url.includes('/Public/Tendering/ContractNoticeManagement/Index') ||
-    url.includes('searchText=')
-  );
-}
-
-function isLicitacionesInfoUrl(url: string): boolean {
-  return url.includes('licitaciones.info');
-}
-
-function collectCandidateUrls(p: LiciProcesoRaw): string[] {
-  const directos = [
-    p['UrlFuente'],
-    p['url_fuente'],
-    p['LinkFuente'],
-    p['link_fuente'],
-    p['UrlFuenteRegistrado'],
-    p['url_fuente_registrado'],
-    p['LinkFuenteRegistrado'],
-    p['link_fuente_registrado'],
-    p['link'],
-  ]
-    .map(normalizeUrl)
-    .filter(Boolean);
-
-  const fuentes = Array.isArray(p['fuentes'])
-    ? p['fuentes']
-        .flatMap((f) => [f?.url, f?.link])
-        .map(normalizeUrl)
-        .filter(Boolean)
-    : [];
-
-  const documentos = [
-    ...(Array.isArray(p['Documentos']) ? p['Documentos'] : []),
-    ...(Array.isArray(p['documentos']) ? p['documentos'] : []),
-  ]
-    .flatMap((d) => [d?.Ruta, d?.ruta, d?.Url, d?.url])
-    .map(normalizeUrl)
-    .filter(Boolean);
-
-  return [...new Set([...directos, ...fuentes, ...documentos])];
-}
-
-/**
- * Prioridad:
- * 1) SECOP I directo real
- * 2) SECOP II detalle real (OpportunityDetail)
- * 3) Portal oficial privado / fuente originadora
- * 4) SECOP II búsqueda, solo como fallback
- * 5) licitaciones.info, solo como fallback final
- * 6) cualquier otro candidato no vacío
- *
- * IMPORTANTE:
- * Para SECOP I NO se construye el link usando CodigoProceso,
- * porque CodigoProceso no siempre coincide con numConstancia.
- */
-function resolverLinkDetalle(p: LiciProcesoRaw): string {
-  const alias  = String(p['alias_fuente'] ?? '').toUpperCase();
-  const fuente = String(p['nombre_fuente'] ?? '').toLowerCase();
-
-  const candidates = collectCandidateUrls(p);
-
-  const secop1Directo = candidates.find(isSecop1Url);
-  if (secop1Directo) return secop1Directo;
-
-  const secop2Directo = candidates.find(isSecop2DetailUrl);
-  if (secop2Directo) return secop2Directo;
-
-  const portalPrivadoOficial = candidates.find(
-    (u) => !isLicitacionesInfoUrl(u) && !isSecop2SearchUrl(u)
-  );
-  if (portalPrivadoOficial) return portalPrivadoOficial;
-
-  if (alias === 'S2' || fuente.includes('secop ii') || fuente.includes('secop2')) {
-    const secop2Busqueda = candidates.find(isSecop2SearchUrl);
-    if (secop2Busqueda) return secop2Busqueda;
-  }
-
-  const liciInfo = candidates.find(isLicitacionesInfoUrl);
-  if (liciInfo) return liciInfo;
-
-  return pickFirstNonEmpty(...candidates);
-}
-
-// ── Normalizar ────────────────────────────────────────────────────────────────
 
 export function normalizarProceso(p: LiciProcesoRaw) {
-  const v = p['Valor'];
+  const aliasFuente = String(p['alias_fuente'] ?? '').trim().toUpperCase();
+  const fuente = String(p['nombre'] ?? p['nombre_fuente'] ?? '').trim();
 
-  const candidates = collectCandidateUrls(p);
+  const linkReal = normalizeUrl(p['Link']);
+  const random = normalizeUrl(p['Random']);
+  const idUltimaFase = normalizeUrl(p['idUltimaFase']);
+  const baseRegistrados = normalizeUrl(p['url_secop2_registrados']);
 
-  const linkSecop =
-    candidates.find(isSecop2DetailUrl) ||
-    candidates.find(isSecop1Url) ||
-    '';
+  let linkDetalle = linkReal;
+  let linkSecop = '';
+  let linkSecopReg = '';
 
-  const linkSecopReg = pickFirstNonEmpty(
-    p['UrlFuenteRegistrado'],
-    p['url_fuente_registrado'],
-    p['LinkFuenteRegistrado'],
-    p['link_fuente_registrado']
-  );
+  if (aliasFuente === 'S2') {
+    linkSecop = linkReal;
+    linkSecopReg = construirLinkRegistradosSecop2(baseRegistrados, idUltimaFase);
+  } else if (aliasFuente === 'S1') {
+    linkSecop = linkReal;
+  }
 
-  const linkDetalle = resolverLinkDetalle(p);
+  if (!linkDetalle && random) {
+    linkDetalle = `https://col.licitaciones.info/detalle-contrato?random=${random}`;
+  }
 
-  // Documentos
-  const rawDocs: Record<string, unknown>[] =
-    Array.isArray(p['documentos_proceso']) ? p['documentos_proceso'] as Record<string, unknown>[]
-    : Array.isArray(p['Documentos']) ? p['Documentos'] as Record<string, unknown>[]
-    : Array.isArray(p['documentos']) ? p['documentos'] as Record<string, unknown>[]
-    : [];
+  const rawDocs = Array.isArray(p['Documentos'])
+    ? p['Documentos']
+    : Array.isArray(p['documentos'])
+      ? p['documentos']
+      : [];
 
   const documentos = rawDocs.map((d) => ({
-    nombre: String(d['nombre'] ?? d['Nombre'] ?? ''),
-    ruta:   String(d['ruta']   ?? d['Ruta']   ?? d['url'] ?? d['Url'] ?? ''),
-    url:    String(d['ruta']   ?? d['Ruta']   ?? d['url'] ?? d['Url'] ?? ''),
+    nombre: String(d['Nombre'] ?? d['nombre'] ?? ''),
+    ruta: String(d['Ruta'] ?? d['ruta'] ?? d['Url'] ?? d['url'] ?? ''),
+    url: String(d['Ruta'] ?? d['ruta'] ?? d['Url'] ?? d['url'] ?? ''),
   }));
 
-  // Cronogramas
-  const rawCron: Record<string, unknown>[] =
-    Array.isArray(p['cronogramas']) ? p['cronogramas'] as Record<string, unknown>[]
-    : Array.isArray(p['Cronograma']) ? p['Cronograma'] as Record<string, unknown>[]
-    : [];
+  const rawCron = Array.isArray(p['Cronograma'])
+    ? p['Cronograma']
+    : Array.isArray(p['cronograma'])
+      ? p['cronograma']
+      : [];
 
   const cronogramas = rawCron.map((cr) => ({
-    nombre: String(cr['label'] ?? cr['nombre'] ?? cr['Nombre'] ?? ''),
-    fecha:  String(cr['fecha'] ?? cr['Fecha'] ?? ''),
+    nombre: String(cr['Nombre'] ?? cr['nombre'] ?? ''),
+    fecha: String(cr['Fecha'] ?? cr['fecha'] ?? ''),
   }));
 
-  // Fuentes normalizadas
-  const fuentes = Array.isArray(p['fuentes']) ? p['fuentes'] : [];
+  const valorRaw = p['Valor'];
+  const valor =
+    valorRaw != null && String(valorRaw).trim() !== ''
+      ? Number(String(valorRaw).replace(/[^\d.-]/g, ''))
+      : null;
 
   return {
-    id:               Number(p['idContrato'] ?? 0),
-    nombre:           String(p['Nombre'] ?? ''),
-    codigoProceso:    String(p['CodigoProceso'] ?? ''),
-    fuente:           String(p['nombre_fuente'] ?? ''),
-    aliasFuente:      String(p['alias_fuente'] ?? ''),
-    modalidad:        String(p['tipo'] ?? ''),
+    id: Number(p['idContrato'] ?? 0),
+    nombre: String(p['Nombre'] ?? ''),
+    codigoProceso: String(p['CodigoProceso'] ?? ''),
+    fuente,
+    aliasFuente,
+    modalidad: String(p['modalidad'] ?? ''),
     fechaPublicacion: (p['FechaPublicacion'] as string | null) ?? null,
     fechaVencimiento: (p['FechaVencimiento'] as string | null) ?? null,
-    entidad:          String(p['EntidadContratante'] ?? ''),
-    objeto:           String(p['Objeto'] ?? ''),
-    valor:            v != null && String(v).trim() !== '' ? Number(v) : null,
-    departamento:     String(p['TextoDepartamento'] ?? ''),
-    estado:           String(p['estado_agrupado'] ?? ''),
-    perfil:           String(p['_perfil'] ?? ''),
+    entidad: String(p['EntidadContratante'] ?? ''),
+    objeto: String(p['Objeto'] ?? ''),
+    valor: Number.isFinite(valor as number) ? valor : null,
+    departamento: String(p['TextoDepartamento'] ?? ''),
+    estado: String(p['estado_agrupado'] ?? ''),
+    perfil: String(p['_perfil'] ?? ''),
     linkDetalle,
     linkSecop,
     linkSecopReg,
-    fuentes,
     totalCronogramas: cronogramas.length,
-    totalDocumentos:  documentos.length,
+    totalDocumentos: documentos.length,
     cronogramas,
     documentos,
   };
