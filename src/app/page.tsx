@@ -1,15 +1,35 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import LicyTopbar from "@/components/licycolba/LicyTopbar";
+import ProcesosCardsView from "@/components/licycolba/ProcesosCardsView";
+import "@/components/licycolba/procesos-cards.css";
+
 const DRAFT_KEY = 'licycolba_draft_solicitud';
 
 /* ══════════════════════════════════════════════════════════════
    TIPOS
 ══════════════════════════════════════════════════════════════ */
 interface Sesion { usuario:string; cargo:string; email:string; entidadGrupo:string; rol:string; }
-interface UserPayload { cedula:string; celular:string; entidadGrupo:string; cargo:string; email:string; usuario:string; rol:string; estado:string; firmaDigital:string; password:string; }
-const PAYLOAD_VACIO:UserPayload={cedula:'',celular:'',entidadGrupo:'',cargo:'',email:'',usuario:'',rol:'',estado:'Activo',firmaDigital:'',password:''};
-interface User { id:number; cedula:string; celular:string; entidadGrupo:string; cargo:string; email:string; usuario:string; rol:string; estado:string; firmaDigital:string|null; createdAt:string; updatedAt:string; }
+interface UserPayload { cedula:string; celular:string; entidadGrupo:string; cargo:string; email:string; usuario:string; rol:string; estado:string; firmaDigital:string; password:string; proceso:string; subproceso:string; uen:string; }
+const PROCESOS_SUBPROCESOS: Record<string, string[]> = {
+  'HSEQ': ['Calidad', 'Ambiental', 'SST'],
+  'Gestión humana': ['Seguridad social', 'Nómina', 'Archivos', 'Prestaciones sociales', 'Bienestar'],
+  'Gestión contable y financiera': [],
+  'Logística': ['Almacén', 'Compras', 'Mantenimiento'],
+  'Atención al cliente': [],
+  'Comercial': [],
+  'Mercadeo y comunicaciones': [],
+  'Legal': ['Legal laboral', 'Legal contratos'],
+  'TIC': [],
+  'Control interno': [],
+  'Contratos': [],
+  'Ejecución y entrega del servicio': [],
+};
+const PROCESOS = Object.keys(PROCESOS_SUBPROCESOS);
+const UEN_OPCIONES = ['Barranquilla', 'Bogotá', 'Mina'];
+const PAYLOAD_VACIO:UserPayload={cedula:'',celular:'',entidadGrupo:'',cargo:'',email:'',usuario:'',rol:'',estado:'Activo',firmaDigital:'',password:'',proceso:'',subproceso:'',uen:''};
+interface User { id:number; cedula:string; celular:string; entidadGrupo:string; cargo:string; email:string; usuario:string; rol:string; estado:string; firmaDigital:string|null; proceso:string|null; subproceso:string|null; uen:string|null; createdAt:string; updatedAt:string; }
 interface DeletedUser { id:number; cedula:string; celular:string; entidadGrupo:string; cargo:string; email:string; usuario:string; rol:string; estado:string; deletedAt:string; deletedByUsuario:string|null; deletedByEmail:string|null; }
 interface LiciCronograma { nombre?:string; fecha?:string; [k:string]:unknown; }
 interface LiciDocumento  { nombre?:string; ruta?:string; url?:string; [k:string]:unknown; }
@@ -25,43 +45,109 @@ interface ProcesosApiResponse { ok:boolean; total_resultados_api:number; total_r
 
 /* ── SOLICITUD ── */
 interface Solicitud {
-  id:number; procesoId:number|null; procesoSourceKey:string;
-  codigoProceso:string; nombreProceso:string; entidad:string; objeto:string;
-  fuente:string; aliasFuente:string; modalidad:string; perfil:string;
-  departamento:string; estadoFuente:string; fechaPublicacion:string|null;
-  fechaVencimiento:string|null; valor:number|null;
-  linkDetalle:string; linkSecop:string; linkSecopReg:string;
-  estadoSolicitud:string; observacion:string|null;
-  ciudad:string; sede:string; plataforma:string;
-  fechaCierre:string|null;
-  procStep:number;
-  procData:Record<string,{fechaI:string;fechaF:string;obs:string}>;
-  obsData:unknown[]; docData:unknown[]; asignaciones:unknown[];
-  revisor:string; aprobador:string;
-  usuarioRegistro:string; emailRegistro:string; cargoRegistro:string; entidadRegistro:string;
-  sqrNumero:string|null;
-  sqrCreada:boolean;
-  sqrCerrada:boolean;
-  sqrError:string|null;
-  fechaAperturaSqr:string|null;
-  fechaCierreSqr:string|null;
-  resultadoFinal:string|null;
-  causalCierre:string|null;
-  createdAt:string; updatedAt:string;
+  id: number;
+  procesoId: number | null;
+  procesoSourceKey: string;
+  codigoProceso: string;
+  nombreProceso: string;
+  entidad: string;
+  objeto: string;
+  fuente: string;
+  aliasFuente: string;
+  modalidad: string;
+  perfil: string;
+  departamento: string;
+  estadoFuente: string;
+  fechaPublicacion: string | null;
+  fechaVencimiento: string | null;
+  valor: number | null;
+  linkDetalle: string;
+  linkSecop: string;
+  linkSecopReg: string;
+
+  origenSolicitud?: string | null;
+
+  nitContacto?: string | null;
+  personaContacto?: string | null;
+  telefonoContacto?: string | null;
+  direccionContacto?: string | null;
+  correoContacto?: string | null;
+
+  estadoSolicitud: string;
+  observacion: string | null;
+  ciudad: string;
+  sede: string;
+  plataforma: string;
+  fechaCierre: string | null;
+  procStep: number;
+  procData: Record<string, { fechaI: string; fechaF: string; obs: string }>;
+  obsData: unknown[];
+  docData: unknown[];
+  asignaciones: unknown[];
+  revisor: string;
+  aprobador: string;
+  usuarioRegistro: string;
+  emailRegistro: string;
+  cargoRegistro: string;
+  entidadRegistro: string;
+  sqrNumero: string | null;
+  sqrCreada: boolean;
+  sqrCerrada: boolean;
+  sqrError: string | null;
+  fechaAperturaSqr: string | null;
+  fechaCierreSqr: string | null;
+  resultadoFinal: string | null;
+  causalCierre: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface DeletedSolicitud {
-  id:number; originalId:number|null;
-  codigoProceso:string; nombreProceso:string; entidad:string; objeto:string;
-  fuente:string; aliasFuente:string; modalidad:string; perfil:string;
-  departamento:string; estadoFuente:string; fechaPublicacion:string|null;
-  fechaVencimiento:string|null; valor:number|null; linkDetalle:string;
-  estadoSolicitud:string; observacion:string|null;
-  ciudad:string; sede:string; plataforma:string; fechaCierre:string|null;
-  procStep:number; revisor:string; aprobador:string;
-  usuarioRegistro:string; emailRegistro:string; cargoRegistro:string; entidadRegistro:string;
-  createdAt:string|null; updatedAt:string|null;
-  deletedAt:string; deletedByUsuario:string|null; deletedByEmail:string|null;
+  id: number;
+  originalId: number | null;
+
+  codigoProceso: string;
+  nombreProceso: string;
+  entidad: string;
+  objeto: string;
+  fuente: string;
+  aliasFuente: string;
+  modalidad: string;
+  perfil: string;
+  departamento: string;
+  estadoFuente: string;
+  fechaPublicacion: string | null;
+  fechaVencimiento: string | null;
+  valor: number | null;
+  linkDetalle: string;
+
+  origenSolicitud?: string | null;
+
+  nitContacto?: string | null;
+  personaContacto?: string | null;
+  telefonoContacto?: string | null;
+  direccionContacto?: string | null;
+  correoContacto?: string | null;
+
+  estadoSolicitud: string;
+  observacion: string | null;
+  ciudad: string;
+  sede: string;
+  plataforma: string;
+  fechaCierre: string | null;
+  procStep: number;
+  revisor: string;
+  aprobador: string;
+  usuarioRegistro: string;
+  emailRegistro: string;
+  cargoRegistro: string;
+  entidadRegistro: string;
+
+  createdAt: string | null;
+  updatedAt: string | null;
+  deletedAt: string;
+  deletedByUsuario: string | null;
+  deletedByEmail: string | null;
 }
 
 interface ExamenMedico { [k:string]:unknown; }
@@ -106,7 +192,7 @@ const portalColor=(a:string,f:string)=>{const au=a.toUpperCase();const fu=f.toUp
 const portalColorModal=(a:string,f:string,r:string)=>{const au=a.toUpperCase();const fu=f.toUpperCase();if(au==='S2'||fu.includes('SECOP II'))return{short:'S2',label:'SECOP II',bg:'#1E5799',color:'white'};if(au==='S1'||fu.includes('SECOP I'))return{short:'S1',label:'SECOP I',bg:'#16a34a',color:'white'};return{short:au||'NC',label:r||'Otro portal',bg:'#0F2040',color:'white'};};
 const estadoBadgeColor=(e:string)=>{const s=e.toLowerCase();if(s.includes('convocatoria')||s.includes('publicado')||s.includes('abierto')||s.includes('vigente'))return{bg:'#E8F5E9',color:'#1B5E20'};if(s.includes('adjudicado'))return{bg:'#E3F2FD',color:'#0D47A1'};if(s.includes('cerrado')||s.includes('vencido'))return{bg:'#EAF2FB',color:'#1E5799'};if(s.includes('cancelado')||s.includes('desierto'))return{bg:'#FFEBEE',color:'#B71C1C'};if(s.includes('evaluac')||s.includes('selecc'))return{bg:'#FFF8E1',color:'#E65100'};return{bg:'#F1F5F9',color:'#475569'};};
 const estadoModalColor=(e:string)=>{const s=e.toLowerCase();if(s.includes('convocatoria')||s.includes('publicado')||s.includes('abierto')||s.includes('vigente'))return{bg:'#E8F5E9',color:'#1B5E20',dot:'#2E7D32'};if(s.includes('adjudicado'))return{bg:'#E3F2FD',color:'#0D47A1',dot:'#1565C0'};if(s.includes('cerrado')||s.includes('vencido'))return{bg:'#EAF2FB',color:'#1E5799',dot:'#2E7BC4'};if(s.includes('cancelado')||s.includes('desierto'))return{bg:'#FFEBEE',color:'#B71C1C',dot:'#C62828'};if(s.includes('evaluac')||s.includes('selecc'))return{bg:'#FFF8E1',color:'#E65100',dot:'#EF6C00'};return{bg:'#F1F5F9',color:'#475569',dot:'#94A3B8'};};
-const perfilColor=(p:string)=>{const s=p.toLowerCase();if(s.includes('aseo'))return{bg:'#E8F5E9',color:'#1B5E20',label:'Aseocolba'};if(s.includes('vigi'))return{bg:'#EAF2FB',color:'#1E5799',label:'Vigicolba'};if(s.includes('tempo'))return{bg:'#FFF8E1',color:'#E65100',label:'Tempocolba'};return{bg:'#F1F5F9',color:'#475569',label:p.charAt(0).toUpperCase()+p.slice(1)};};
+const perfilColor=(p:string)=>{const s=p.toLowerCase();if(s.includes('aseo'))return{bg:'#e8edf5',color:'#0d2d5e',label:'Aseocolba'};if(s.includes('vigi'))return{bg:'#fde8eb',color:'#c8102e',label:'Vigicolba'};if(s.includes('tempo'))return{bg:'#e3eef8',color:'#1a5ea8',label:'Tempocolba'};return{bg:'#F1F5F9',color:'#475569',label:p.charAt(0).toUpperCase()+p.slice(1)};};
 const estadoSolicitudColor=(e:string)=>{const s=(e||'').toLowerCase();if(s==='abierta'||s.includes('revisión')||s.includes('revision'))return{bg:'#e0f2fe',color:'#0369a1'};if(s==='asignada')return{bg:'#E8F5E9',color:'#1B5E20'};if(s==='adjudicada'||s==='aceptada')return{bg:'#E3F2FD',color:'#0D47A1'};if(s.includes('no ')|| s==='rechazada')return{bg:'#FFEBEE',color:'#B71C1C'};if(s==='cerrada')return{bg:'#F1F5F9',color:'#475569'};return{bg:'#FFF8E1',color:'#E65100'};};
 
 /* ══════════════════════════════════════════════════════════════
@@ -151,12 +237,18 @@ const IcoExternalLink=()=>(<svg fill="none" stroke="currentColor" strokeWidth={2
 function PantallaLogin({onLogin}:{onLogin:(s:Sesion)=>void}) {
   const [email,setEmail]=useState('');const[password,setPassword]=useState('');const[showPass,setShowPass]=useState(false);const[error,setError]=useState('');const[loading,setLoading]=useState(false);
   const handleSubmit=async(e:React.FormEvent)=>{e.preventDefault();setError('');const em=email.trim().toLowerCase();if(!em||!em.includes('@')){setError('Ingresa un correo válido.');return;}if(!password){setError('La contraseña es obligatoria.');return;}setLoading(true);try{const res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:em,password})});const data=await res.json();if(!res.ok){setError(data.error??'No se pudo iniciar sesión.');return;}guardarSesion(data as Sesion);onLogin(data as Sesion);}catch{setError('No se pudo conectar.');}finally{setLoading(false);}};
-  return(<div className="login-page"><div className="login-deco login-deco-tl"/><div className="login-deco login-deco-br"/><div className="login-card"><div className="login-brand">{ }<img src="https://www.grupocolba.com.co/wp-content/uploads/2021/05/grupocolba-logo.png" alt="Grupo Colba" className="login-logo"/></div>{error&&<div className="login-error">{error}</div>}<form className="login-form" onSubmit={handleSubmit} noValidate><div className="login-field"><label className="login-label">Correo electrónico</label><input className="login-input" type="email" placeholder="comercial@grupocolba.com" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" disabled={loading}/></div><div className="login-field"><label className="login-label">Contraseña</label><div className="login-pass-wrap"><input className="login-input login-input-pass" type={showPass?'text':'password'} placeholder="••••••••" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" disabled={loading}/><button type="button" className="login-eye" onClick={()=>setShowPass(v=>!v)} tabIndex={-1}>{showPass?<IcoEyeOff/>:<IcoEyeOn/>}</button></div></div><button type="submit" className="login-btn" disabled={loading}>{loading?'Verificando…':'Ingresar'}</button></form><p className="login-footer">COPYRIGHT © 2026 <strong>Grupo Colba</strong></p></div></div>);
-}
+  return(<div className="login-page"><div className="login-deco login-deco-tl"/><div className="login-deco login-deco-br"/><div className="login-card"><div className="login-brand">{ }<img src="https://www.grupocolba.com.co/wp-content/uploads/2021/05/grupocolba-logo.png" alt="Grupo Colba" className="login-logo"/></div>{error&&<div className="login-error">{error}</div>}<form className="login-form" onSubmit={handleSubmit} noValidate><div className="login-field"><label className="login-label">Correo electrónico</label><input className="login-input" type="email" placeholder="comercial@grupocolba.com" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" disabled={loading}/></div><div className="login-field"><label className="login-label">Contraseña</label><div className="login-pass-wrap"><input className="login-input login-input-pass" type={showPass?'text':'password'} placeholder="••••••••" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" disabled={loading}/><button type="button" className="login-eye" onClick={()=>setShowPass(v=>!v)} tabIndex={-1}>{showPass?<IcoEyeOff/>:<IcoEyeOn/>}</button></div></div><button type="submit" className="login-btn" disabled={loading}>{loading?'Verificando…':'Ingresar'}</button></form><div className="login-footer">
+  <div style={{display:'flex',justifyContent:'center',marginBottom:10}}>
+    <img src="/logosempresas.svg" alt="Empresas Grupo Colba" style={{height:70,objectFit:'contain',opacity:.9}}/>
+  </div>
+      <p style={{margin:0,fontSize:11,color:'#94a3b8',textAlign:'center'}}>COPYRIGHT © 2026 <strong>Grupo Colba</strong></p>
+    </div></div></div>);
+    }
 
 /* ── Badge conteo procesos nuevos de hoy ── */
 function BadgeNuevosHoy(){
   const[count,setCount]=React.useState<number|null>(null);
+  const [docVista,setDocVista]=React.useState<'grid'|'list'>('list');
   React.useEffect(()=>{
     fetch('/api/procesos/nuevos?filtro=hoy&limit=1')
       .then(r=>r.json())
@@ -187,25 +279,325 @@ function Sidebar({collapsed,onToggle,activeModule,onModuleChange,openAccordion,o
   const solAbiertasModules=['solicitudesComercial','solicitudesEspecializada'];
   const [subOpen,setSubOpen]=React.useState<string|null>(solAbiertasModules.includes(activeModule)?'solicitudesAbiertas':null);
   const toggleSub=(k:string)=>setSubOpen(prev=>prev===k?null:k);
-  return(<aside className={`sidebar${collapsed?' collapsed':''}`}><div className="sidebar-logo" style={{flexShrink:0}}><div className="logo-box"><div className="logo-qs">{ }<img src="https://www.grupocolba.com.co/wp-content/uploads/2021/05/grupocolba-logo.png" alt="Grupo Colba"/></div><div className="logo-version"><strong>LICYCOLBA</strong></div></div><button className="toggle-btn" onClick={onToggle}><IcoChevL/></button></div><div className="sidebar-scroll"><div className="sidebar-user"><IcoUser/><div className="sidebar-user-info"><div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:500}}>{sesion.usuario.replace(/(?:^|[.\s_-])(\w)/g,(m,c)=>m.replace(c,c.toUpperCase()))}</div><div style={{fontSize:10.5,color:'var(--sidebar-text-dim)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:1}}>{sesion.cargo}</div></div></div><nav className="sidebar-nav"><div className="nav-item" onClick={onLogout}><IcoLogout/><span className="nav-item-text">Cerrar sesión</span></div><div className={ni('dashboard')} onClick={()=>onModuleChange('dashboard')}><IcoDashboard/><span className="nav-item-text">Dashboard</span></div><div className={ni('trm')} onClick={()=>onModuleChange('trm')}><IcoTRM/><span className="nav-item-text">TRM</span></div><div className="section-title">MÓDULOS</div><div className={ni('busqueda')} onClick={()=>onAccordionToggle('busqueda')}><IcoBusqueda/><span className="nav-item-text">Búsqueda de procesos</span><span className="nav-arrow"><IcoChevR/></span></div><div className="sub-nav"><div className={`sub-item${activeModule==='procesosNuevos'?' active':''}`} onClick={()=>onModuleChange('procesosNuevos')}>Procesos nuevos<BadgeNuevosHoy/></div><div className={`sub-item${activeModule==='busquedaFinal'?' active':''}`} onClick={()=>onModuleChange('busquedaFinal')}>Todos los procesos</div></div><div className={ni('solicitudes')} onClick={()=>onAccordionToggle('solicitudes')}><IcoSolicitudes/><span className="nav-item-text">Solicitudes</span><span className="nav-arrow"><IcoChevR/></span></div><div className="sub-nav"><div className={`sub-item${['solicitudesComercial','solicitudesEspecializada'].includes(activeModule)?' active':''}`} onClick={()=>toggleSub('solicitudesAbiertas')} style={{display:'flex',alignItems:'center',cursor:'pointer',width:'100%'}}>Solicitudes abiertas<span style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',transform:subOpen==='solicitudesAbiertas'?'rotate(90deg)':'none',transition:'transform .2s',width:16,height:16,opacity:.7}}><IcoChevR/></span></div>{subOpen==='solicitudesAbiertas'&&<div style={{paddingLeft:12}}><div className={`sub-item${activeModule==='solicitudesComercial'?' active':''}`} onClick={()=>onModuleChange('solicitudesComercial')}>Comercial</div><div className={`sub-item${activeModule==='solicitudesEspecializada'?' active':''}`} onClick={()=>onModuleChange('solicitudesEspecializada')}>Especializados</div></div>}<div className={`sub-item${activeModule==='solicitudesRechazadas'?' active':''}`} onClick={()=>onModuleChange('solicitudesRechazadas')}>Solicitudes rechazadas</div><div className={`sub-item${activeModule==='solicitudesEliminadas'?' active':''}`} onClick={()=>onModuleChange('solicitudesEliminadas')}>Solicitudes eliminadas</div><div className={`sub-item${activeModule==='solicitudesTodas'?' active':''}`} onClick={()=>onModuleChange('solicitudesTodas')}>Todas las solicitudes</div></div><div className={ni('asignaciones')} onClick={()=>onAccordionToggle('asignaciones')}><IcoAsignaciones/><span className="nav-item-text">Asignaciones</span><span className="nav-arrow"><IcoChevR/></span></div><div className="sub-nav"><div className="sub-item" onClick={()=>onModuleChange('asignacionesPendientes')}>Asignaciones pendientes</div><div className="sub-item" onClick={()=>onModuleChange('asignacionesTerminadas')}>Asignaciones terminadas</div></div><div className={ni('cronogramas')} onClick={()=>onAccordionToggle('cronogramas')}><IcoCronogramas/><span className="nav-item-text" style={{opacity:0.5}}>Cronogramas</span><span className="nav-arrow"><IcoChevR/></span></div><div className="sub-nav"><div className="sub-item">Todos los cronogramas</div></div><div className={ni('maestroDeDocumentos')} onClick={()=>onModuleChange('maestroDeDocumentos')}><IcoMaestro/><span className="nav-item-text">Maestro de documentos</span></div><div className={ni('estructuraDeCostos')} onClick={()=>onModuleChange('estructuraDeCostos')}><IcoEstructura/><span className="nav-item-text">Estructura de costos</span></div><div className={ni('examenesMedicos')} onClick={()=>onModuleChange('examenesMedicos')}><IcoExamenes/><span className="nav-item-text">Exámenes médicos</span></div><div className={ni('usuarios')} onClick={()=>onAccordionToggle('usuarios')}><IcoUsuarios/><span className="nav-item-text">Usuarios y perfiles</span><span className="nav-arrow"><IcoChevR/></span></div><div className="sub-nav"><div className={`sub-item${activeModule==='usuarios'?' active':''}`} onClick={()=>onModuleChange('usuarios')}>Usuarios</div><div className={`sub-item${activeModule==='perfiles'?' active':''}`} onClick={()=>onModuleChange('perfiles')}>Perfiles</div><div className={`sub-item${activeModule==='usuariosEliminados'?' active':''}`} onClick={()=>onModuleChange('usuariosEliminados')}>Usuarios eliminados</div></div><div className={ni('indicadores')} onClick={()=>onAccordionToggle('indicadores')}><IcoIndicadores/><span className="nav-item-text" style={{opacity:0.5}}>Indicadores</span><span className="nav-arrow"><IcoChevR/></span></div><div className="sub-nav"><div className="sub-item">Panel de indicadores</div></div><div className="section-title">CUENTA</div><div className="nav-item"><IcoConfig/><span className="nav-item-text">Configuración de cuenta</span></div><div className="section-title">LICYCOLBA</div></nav></div></aside>);
+  return(<aside className={`sidebar${collapsed?' collapsed':''}`}><div className="sidebar-logo" style={{flexShrink:0}}><div className="logo-box"><div className="logo-qs">{ }<img src="https://www.grupocolba.com.co/wp-content/uploads/2021/05/grupocolba-logo.png" alt="Grupo Colba"/></div><div className="logo-version"><strong>LICYCOLBA</strong></div></div><button className="toggle-btn" onClick={onToggle}><IcoChevL/></button></div><div className="sidebar-scroll"><div className="sidebar-user"><IcoUser/><div className="sidebar-user-info"><div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:500}}>{sesion.usuario.replace(/(?:^|[.\s_-])(\w)/g,(m,c)=>m.replace(c,c.toUpperCase()))}</div><div style={{fontSize:10.5,color:'var(--sidebar-text-dim)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:1}}>{sesion.cargo}</div></div></div><nav className="sidebar-nav"><div className="nav-item" onClick={onLogout}><IcoLogout/><span className="nav-item-text">Cerrar sesión</span></div><div className={ni('dashboard')} onClick={()=>onModuleChange('dashboard')}><IcoDashboard/><span className="nav-item-text">Dashboard</span></div><div className={ni('trm')} onClick={()=>onModuleChange('trm')}><IcoTRM/><span className="nav-item-text">TRM</span></div><div className="section-title">MÓDULOS</div><div className={ni('busqueda')} onClick={()=>onAccordionToggle('busqueda')}><IcoBusqueda/><span className="nav-item-text">Búsqueda de procesos</span><span className="nav-arrow"><IcoChevR/></span></div><div className="sub-nav"><div className={`sub-item${activeModule==='procesosNuevos'?' active':''}`} onClick={()=>onModuleChange('procesosNuevos')}>Procesos nuevos<BadgeNuevosHoy/></div><div className={`sub-item${activeModule==='busquedaFinal'?' active':''}`} onClick={()=>onModuleChange('busquedaFinal')}>Todos los procesos</div></div><div className={ni('solicitudes')} onClick={()=>onAccordionToggle('solicitudes')}><IcoSolicitudes/><span className="nav-item-text">Solicitudes</span><span className="nav-arrow"><IcoChevR/></span></div><div className="sub-nav"><div className={`sub-item${['solicitudesComercial','solicitudesEspecializada'].includes(activeModule)?' active':''}`} onClick={()=>toggleSub('solicitudesAbiertas')} style={{display:'flex',alignItems:'center',cursor:'pointer',width:'100%'}}>Solicitudes abiertas<span style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',transform:subOpen==='solicitudesAbiertas'?'rotate(90deg)':'none',transition:'transform .2s',width:16,height:16,opacity:.7}}><IcoChevR/></span></div>{subOpen==='solicitudesAbiertas'&&<div style={{paddingLeft:12}}><div className={`sub-item${activeModule==='solicitudesComercial'?' active':''}`} onClick={()=>onModuleChange('solicitudesComercial')}>Comercial</div><div className={`sub-item${activeModule==='solicitudesEspecializada'?' active':''}`} onClick={()=>onModuleChange('solicitudesEspecializada')}>Especializados</div></div>}<div className={`sub-item${activeModule==='solicitudesRechazadas'?' active':''}`} onClick={()=>onModuleChange('solicitudesRechazadas')}>Solicitudes rechazadas</div><div className={`sub-item${activeModule==='solicitudesEliminadas'?' active':''}`} onClick={()=>onModuleChange('solicitudesEliminadas')}>Solicitudes eliminadas</div><div className={`sub-item${activeModule==='solicitudesTodas'?' active':''}`} onClick={()=>onModuleChange('solicitudesTodas')}>Todas las solicitudes</div></div><div className={ni('asignaciones')} onClick={()=>onAccordionToggle('asignaciones')}><IcoAsignaciones/><span className="nav-item-text">Asignaciones</span><span className="nav-arrow"><IcoChevR/></span></div><div className="sub-nav"><div className="sub-item" onClick={()=>onModuleChange('asignacionesPendientes')}>Asignaciones pendientes</div><div className="sub-item" onClick={()=>onModuleChange('asignacionesTerminadas')}>Asignaciones terminadas</div></div><div className={ni('cronogramas')} onClick={()=>onAccordionToggle('cronogramas')}><IcoCronogramas/><span className="nav-item-text" style={{opacity:0.5}}>Cronogramas</span><span className="nav-arrow"><IcoChevR/></span></div><div className="sub-nav"><div className="sub-item">Todos los cronogramas</div></div><div className={ni('maestroDeDocumentos')} onClick={()=>onModuleChange('maestroDeDocumentos')}><IcoMaestro/><span className="nav-item-text">Maestro de documentos</span></div><div className={ni('estructuraDeCostos')} onClick={()=>onModuleChange('estructuraDeCostos')}><IcoEstructura/><span className="nav-item-text">Estructura de costos</span></div><div className={ni('examenesMedicos')} onClick={()=>onModuleChange('examenesMedicos')}><IcoExamenes/><span className="nav-item-text">Exámenes médicos</span></div><div className={ni('usuarios')} onClick={()=>onAccordionToggle('usuarios')}><IcoUsuarios/><span className="nav-item-text">Usuarios y perfiles</span><span className="nav-arrow"><IcoChevR/></span></div><div className="sub-nav"><div className={`sub-item${activeModule==='usuarios'?' active':''}`} onClick={()=>onModuleChange('usuarios')}>Usuarios</div><div className={`sub-item${activeModule==='perfiles'?' active':''}`} onClick={()=>onModuleChange('perfiles')}>Perfiles</div><div className={`sub-item${activeModule==='usuariosEliminados'?' active':''}`} onClick={()=>onModuleChange('usuariosEliminados')}>Usuarios eliminados</div></div><div className={ni('indicadores')} onClick={()=>onAccordionToggle('indicadores')}><IcoIndicadores/><span className="nav-item-text" style={{opacity:0.5}}>Indicadores</span><span className="nav-arrow"><IcoChevR/></span></div><div className="sub-nav"><div className="sub-item">Panel de indicadores</div></div><div className="section-title">CUENTA</div><div className="nav-item"><IcoConfig/><span className="nav-item-text">Configuración de cuenta</span></div></nav>
+</div>
+<div style={{padding:'12px 14px 16px',borderTop:'1px solid rgba(255,255,255,0.08)',flexShrink:0}}>
+  <img src="/logosempresas.svg" alt="Empresas Grupo Colba" style={{width:'92%',opacity:1,filter:'brightness(0) invert(1) brightness(2)'}}/>
+</div>
+</aside>);
 }
+
 
 /* ══════════════════════════════════════════════════════════════
    MODALES USUARIOS
 ══════════════════════════════════════════════════════════════ */
 function ModalNuevoUsuario({onClose,onCreado}:{onClose:()=>void;onCreado:()=>void}){
-  const [form,setForm]=useState<UserPayload>(PAYLOAD_VACIO);const[showPass,setShowPass]=useState(false);const[guardando,setGuardando]=useState(false);const[error,setError]=useState('');
+  const [form,setForm]=useState<UserPayload>({...PAYLOAD_VACIO});
+  const [showPass,setShowPass]=useState(false);
+  const [guardando,setGuardando]=useState(false);
+  const [error,setError]=useState('');
+
   const set=(f:keyof UserPayload,v:string)=>setForm(p=>({...p,[f]:v}));
+  const setProceso=(v:string)=>setForm(p=>({...p,proceso:v,subproceso:''}));
+  const subprocesos=PROCESOS_SUBPROCESOS[form.proceso]||[];
+
   const PT=({v}:{v:boolean})=>(<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:15,height:15}}>{v?<><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></>:<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>}</svg>);
-  const handleGuardar=async()=>{setError('');if(!form.cedula||!form.email||!form.usuario||!form.rol||!form.cargo||!form.entidadGrupo||!form.celular){setError('Todos los campos * son obligatorios.');return;}if(!form.password||form.password.length<6){setError('La contraseña debe tener al menos 6 caracteres.');return;}setGuardando(true);try{const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});const data=await res.json();if(!res.ok){setError(data.error??'Error al guardar.');return;}onCreado();onClose();}catch{setError('No se pudo conectar.');}finally{setGuardando(false);}};
-  return(<div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div className="modal-card"><div className="modal-header"><div style={{display:'flex',alignItems:'center',gap:8,color:'#1E5799'}}><IcoUsuarios/><h3 style={{margin:0,fontSize:15,fontWeight:600,color:'#111827'}}>Nuevo usuario</h3></div><button className="modal-close-btn" onClick={onClose}><IcoClose/></button></div>{error&&<div className="modal-error">{error}</div>}<div className="modal-body"><div className="form-row"><div className="form-field"><label>Cédula *</label><input type="text" autoComplete="off" value={form.cedula} onChange={e=>set('cedula',e.target.value)}/></div><div className="form-field"><label>Celular *</label><input type="tel" autoComplete="off" value={form.celular} onChange={e=>set('celular',e.target.value)}/></div></div><div className="form-row"><div className="form-field"><label>Entidad del grupo *</label><input type="text" autoComplete="off" value={form.entidadGrupo} onChange={e=>set('entidadGrupo',e.target.value)}/></div><div className="form-field"><label>Cargo *</label><input type="text" autoComplete="off" value={form.cargo} onChange={e=>set('cargo',e.target.value)}/></div></div><div className="form-row"><div className="form-field"><label>Email *</label><input type="text" autoComplete="off" value={form.email} onChange={e=>set('email',e.target.value)}/></div><div className="form-field"><label>Nombre de usuario *</label><input type="text" autoComplete="off" value={form.usuario} onChange={e=>set('usuario',e.target.value)}/></div></div><div className="form-row"><div className="form-field"><label>Rol *</label><input type="text" autoComplete="off" value={form.rol} onChange={e=>set('rol',e.target.value)}/></div><div className="form-field"><label>Estado</label><select value={form.estado} onChange={e=>set('estado',e.target.value)}><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select></div></div><div className="form-row"><div className="form-field"><label>Contraseña * <span style={{fontSize:10.5,color:'#9ca3af',fontWeight:400}}>(mín. 6)</span></label><div style={{position:'relative'}}><input type={showPass?'text':'password'} placeholder="••••••••" autoComplete="new-password" style={{paddingRight:40}} value={form.password} onChange={e=>set('password',e.target.value)}/><button type="button" onClick={()=>setShowPass(v=>!v)} style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',border:'none',background:'transparent',cursor:'pointer',color:'#6b7280',width:24,height:24,padding:0,display:'flex',alignItems:'center',justifyContent:'center'}} tabIndex={-1}><PT v={showPass}/></button></div></div><div className="form-field"/></div></div><div className="modal-actions"><button className="modal-btn-cancel" onClick={onClose} disabled={guardando}>Cancelar</button><button className="modal-btn-save" onClick={handleGuardar} disabled={guardando}>{guardando?'Guardando…':'Guardar usuario'}</button></div></div></div>);
+
+  const handleGuardar=async()=>{
+    setError('');
+    if(!form.cedula||!form.email||!form.usuario||!form.rol||!form.cargo||!form.entidadGrupo||!form.celular){
+      setError('Todos los campos * son obligatorios.');return;
+    }
+    if(!form.password||form.password.length<6){
+      setError('La contraseña debe tener al menos 6 caracteres.');return;
+    }
+    setGuardando(true);
+    try{
+      const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});
+      const data=await res.json();
+      if(!res.ok){setError(data.error??'Error al guardar.');return;}
+      onCreado();onClose();
+    }catch{setError('No se pudo conectar.');}
+    finally{setGuardando(false);}
+  };
+
+  const iS:React.CSSProperties={width:'100%',height:38,border:'1.5px solid #e2e8f0',borderRadius:8,padding:'0 12px',fontSize:13,fontFamily:'var(--font)',color:'#1e293b',outline:'none',background:'white',boxSizing:'border-box'};
+  const iSdis:React.CSSProperties={...iS,background:'#f8fafc',color:'#94a3b8',cursor:'not-allowed'};
+
+  return(
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="modal-card" style={{maxWidth:680,maxHeight:'88vh',overflowY:'auto' as const}}>
+        <div className="modal-header">
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <IcoUsuarios/>
+            <h3 style={{margin:0,fontSize:15,fontWeight:600,color:'#111827'}}>Nuevo usuario</h3>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}><IcoClose/></button>
+        </div>
+        {error&&<div className="modal-error">{error}</div>}
+        <div className="modal-body">
+
+          {/* Fila 1: Nombre de usuario | Cédula */}
+          <div className="form-row">
+            <div className="form-field">
+              <label>Nombre de usuario *</label>
+              <input style={iS} type="text" autoComplete="off" value={form.usuario} onChange={e=>set('usuario',e.target.value)}/>
+            </div>
+            <div className="form-field">
+              <label>Cédula *</label>
+              <input style={iS} type="text" autoComplete="off" value={form.cedula} onChange={e=>set('cedula',e.target.value)}/>
+            </div>
+          </div>
+
+          {/* Fila 2: Email | Celular */}
+          <div className="form-row">
+            <div className="form-field">
+              <label>Email *</label>
+              <input style={iS} type="text" autoComplete="off" value={form.email} onChange={e=>set('email',e.target.value)}/>
+            </div>
+            <div className="form-field">
+              <label>Celular *</label>
+              <input style={iS} type="tel" autoComplete="off" value={form.celular} onChange={e=>set('celular',e.target.value)}/>
+            </div>
+          </div>
+
+          {/* Fila 3: Entidad del grupo | UEN */}
+          <div className="form-row">
+            <div className="form-field">
+              <label>Entidad del grupo *</label>
+              <select style={iS} value={form.entidadGrupo} onChange={e=>set('entidadGrupo',e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                <option>Aseocolba</option>
+                <option>Vigicolba</option>
+                <option>Tempocolba</option>
+              </select>
+            </div>
+            <div className="form-field">
+              <label>UEN</label>
+              <select style={iS} value={form.uen} onChange={e=>set('uen',e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                {UEN_OPCIONES.map(u=><option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Fila 4: Proceso | Subproceso */}
+          <div className="form-row">
+            <div className="form-field">
+              <label>Proceso</label>
+              <select style={iS} value={form.proceso} onChange={e=>setProceso(e.target.value)}>
+                <option value="">— Seleccione proceso —</option>
+                {PROCESOS.map(p=><option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div className="form-field">
+              <label>Subproceso</label>
+              <select
+                style={subprocesos.length===0?iSdis:iS}
+                value={form.subproceso}
+                onChange={e=>set('subproceso',e.target.value)}
+                disabled={subprocesos.length===0}>
+                <option value="">{subprocesos.length===0?'Sin subprocesos':'— Seleccione —'}</option>
+                {subprocesos.map(s=><option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Fila 5: Cargo | Rol */}
+          <div className="form-row">
+            <div className="form-field">
+              <label>Cargo *</label>
+              <input style={iS} type="text" autoComplete="off" value={form.cargo} onChange={e=>set('cargo',e.target.value)}/>
+            </div>
+            <div className="form-field">
+              <label>Rol *</label>
+              <input style={iS} type="text" autoComplete="off" value={form.rol} onChange={e=>set('rol',e.target.value)}/>
+            </div>
+          </div>
+
+          {/* Fila 6: Estado | Contraseña */}
+          <div className="form-row">
+            <div className="form-field">
+              <label>Estado</label>
+              <select style={iS} value={form.estado} onChange={e=>set('estado',e.target.value)}>
+                <option value="Activo">Activo</option>
+                <option value="Inactivo">Inactivo</option>
+              </select>
+            </div>
+            <div className="form-field">
+              <label>Contraseña * <span style={{fontSize:10.5,color:'#9ca3af',fontWeight:400}}>(mín. 6)</span></label>
+              <div style={{position:'relative'}}>
+                <input style={{...iS,paddingRight:40}} type={showPass?'text':'password'} placeholder="••••••••" autoComplete="new-password" value={form.password} onChange={e=>set('password',e.target.value)}/>
+                <button type="button" onClick={()=>setShowPass(v=>!v)} style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',border:'none',background:'transparent',cursor:'pointer',color:'#6b7280',width:24,height:24,padding:0,display:'flex',alignItems:'center',justifyContent:'center'}} tabIndex={-1}><PT v={showPass}/></button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div className="modal-actions">
+          <button className="modal-btn-cancel" onClick={onClose} disabled={guardando}>Cancelar</button>
+          <button className="modal-btn-save" onClick={handleGuardar} disabled={guardando}>{guardando?'Guardando…':'Guardar usuario'}</button>
+        </div>
+      </div>
+    </div>
+  );
 }
-function ModalEditarUsuario({usuario:u,onClose,onGuardado}:{usuario:User;onClose:()=>void;onGuardado:(updatedUser: User)=>void}){
-  const [form,setForm]=useState({cedula:u.cedula,celular:u.celular,entidadGrupo:u.entidadGrupo,cargo:u.cargo,email:u.email,usuario:u.usuario,rol:u.rol,estado:u.estado,firmaDigital:u.firmaDigital??'',password:''});const[showPass,setShowPass]=useState(false);const[guardando,setGuardando]=useState(false);const[error,setError]=useState('');
+
+function ModalEditarUsuario({usuario:u,onClose,onGuardado}:{usuario:User;onClose:()=>void;onGuardado:(updatedUser:User)=>void}){
+  const [form,setForm]=useState({
+    usuario:u.usuario, cedula:u.cedula, email:u.email, celular:u.celular,
+    entidadGrupo:u.entidadGrupo, uen:u.uen??'',
+    proceso:u.proceso??'', subproceso:u.subproceso??'',
+    cargo:u.cargo, rol:u.rol, estado:u.estado,
+    firmaDigital:u.firmaDigital??'', password:'',
+  });
+  const [showPass,setShowPass]=useState(false);
+  const [guardando,setGuardando]=useState(false);
+  const [error,setError]=useState('');
+
   const set=(f:keyof typeof form,v:string)=>setForm(p=>({...p,[f]:v}));
+  const setProceso=(v:string)=>setForm(p=>({...p,proceso:v,subproceso:''}));
+  const subprocesos=PROCESOS_SUBPROCESOS[form.proceso]||[];
+
   const PT=({v}:{v:boolean})=>(<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:15,height:15}}>{v?<><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></>:<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>}</svg>);
-  const handleGuardar=async()=>{setError('');if(!form.cedula||!form.email||!form.usuario||!form.rol||!form.cargo||!form.entidadGrupo||!form.celular){setError('Todos los campos * son obligatorios.');return;}if(form.password&&form.password.length<6){setError('La contraseña debe tener al menos 6 caracteres.');return;}setGuardando(true);try{const payload={...form};if(!payload.password)delete(payload as Partial<typeof payload>).password;const res=await fetch(`/api/users/${u.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await res.json();if(!res.ok){setError(data.error??'Error al guardar.');return;}onGuardado(data as User);onClose();}catch{setError('No se pudo conectar.');}finally{setGuardando(false);}};
-  return(<div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div className="modal-card"><div className="modal-header"><div style={{display:'flex',alignItems:'center',gap:8,color:'#1E5799'}}><IcoPencil/><h3 style={{margin:0,fontSize:15,fontWeight:600,color:'#111827'}}>Editar usuario</h3></div><button className="modal-close-btn" onClick={onClose}><IcoClose/></button></div>{error&&<div className="modal-error">{error}</div>}<div className="modal-body"><div className="form-row"><div className="form-field"><label>Cédula *</label><input type="text" value={form.cedula} onChange={e=>set('cedula',e.target.value)}/></div><div className="form-field"><label>Celular *</label><input type="tel" value={form.celular} onChange={e=>set('celular',e.target.value)}/></div></div><div className="form-row"><div className="form-field"><label>Entidad del grupo *</label><input type="text" value={form.entidadGrupo} onChange={e=>set('entidadGrupo',e.target.value)}/></div><div className="form-field"><label>Cargo *</label><input type="text" value={form.cargo} onChange={e=>set('cargo',e.target.value)}/></div></div><div className="form-row"><div className="form-field"><label>Email *</label><input type="email" value={form.email} onChange={e=>set('email',e.target.value)}/></div><div className="form-field"><label>Nombre de usuario *</label><input type="text" value={form.usuario} onChange={e=>set('usuario',e.target.value)}/></div></div><div className="form-row"><div className="form-field"><label>Rol *</label><input type="text" value={form.rol} onChange={e=>set('rol',e.target.value)}/></div><div className="form-field"><label>Estado</label><select value={form.estado} onChange={e=>set('estado',e.target.value)}><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select></div></div><div className="form-row"><div className="form-field"><label>Nueva contraseña <span style={{fontSize:10.5,color:'#9ca3af',fontWeight:400,marginLeft:6}}>(vacío = no cambiar)</span></label><div style={{position:'relative'}}><input type={showPass?'text':'password'} placeholder="••••••••" autoComplete="new-password" style={{paddingRight:40}} value={form.password} onChange={e=>set('password',e.target.value)}/><button type="button" onClick={()=>setShowPass(v=>!v)} style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',border:'none',background:'transparent',cursor:'pointer',color:'#6b7280',width:24,height:24,padding:0,display:'flex',alignItems:'center',justifyContent:'center'}} tabIndex={-1}><PT v={showPass}/></button></div></div><div className="form-field"/></div></div><div className="modal-actions"><button className="modal-btn-cancel" onClick={onClose} disabled={guardando}>Cancelar</button><button className="modal-btn-save" onClick={handleGuardar} disabled={guardando}>{guardando?'Guardando…':'Guardar cambios'}</button></div></div></div>);
+
+  const handleGuardar=async()=>{
+    setError('');
+    if(!form.cedula||!form.email||!form.usuario||!form.rol||!form.cargo||!form.entidadGrupo||!form.celular){
+      setError('Todos los campos * son obligatorios.');return;
+    }
+    if(form.password&&form.password.length<6){setError('La contraseña debe tener al menos 6 caracteres.');return;}
+    setGuardando(true);
+    try{
+      const payload:Record<string,unknown>={...form};
+      if(!payload.password)delete payload.password;
+      const res=await fetch(`/api/users/${u.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const data=await res.json();
+      if(!res.ok){setError(data.error??'Error al guardar.');return;}
+      onGuardado(data as User);onClose();
+    }catch{setError('No se pudo conectar.');}
+    finally{setGuardando(false);}
+  };
+
+  const iS:React.CSSProperties={width:'100%',height:38,border:'1.5px solid #e2e8f0',borderRadius:8,padding:'0 12px',fontSize:13,fontFamily:'var(--font)',color:'#1e293b',outline:'none',background:'white',boxSizing:'border-box'};
+  const iSdis:React.CSSProperties={...iS,background:'#f8fafc',color:'#94a3b8',cursor:'not-allowed'};
+
+  return(
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+        <div className="modal-card" style={{maxWidth:680,maxHeight:'88vh',overflowY:'auto' as const}}>        <div className="modal-header">
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <IcoPencil/>
+            <h3 style={{margin:0,fontSize:15,fontWeight:600,color:'#111827'}}>Editar usuario</h3>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}><IcoClose/></button>
+        </div>
+        {error&&<div className="modal-error">{error}</div>}
+        <div className="modal-body">
+
+          {/* Fila 1: Nombre de usuario | Cédula */}
+          <div className="form-row">
+            <div className="form-field">
+              <label>Nombre de usuario *</label>
+              <input style={iS} type="text" value={form.usuario} onChange={e=>set('usuario',e.target.value)}/>
+            </div>
+            <div className="form-field">
+              <label>Cédula *</label>
+              <input style={iS} type="text" value={form.cedula} onChange={e=>set('cedula',e.target.value)}/>
+            </div>
+          </div>
+
+          {/* Fila 2: Email | Celular */}
+          <div className="form-row">
+            <div className="form-field">
+              <label>Email *</label>
+              <input style={iS} type="email" value={form.email} onChange={e=>set('email',e.target.value)}/>
+            </div>
+            <div className="form-field">
+              <label>Celular *</label>
+              <input style={iS} type="tel" value={form.celular} onChange={e=>set('celular',e.target.value)}/>
+            </div>
+          </div>
+
+          {/* Fila 3: Entidad del grupo | UEN */}
+          <div className="form-row">
+            <div className="form-field">
+              <label>Entidad del grupo *</label>
+              <select style={iS} value={form.entidadGrupo} onChange={e=>set('entidadGrupo',e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                <option>Aseocolba</option>
+                <option>Vigicolba</option>
+                <option>Tempocolba</option>
+              </select>
+            </div>
+            <div className="form-field">
+              <label>UEN</label>
+              <select style={iS} value={form.uen} onChange={e=>set('uen',e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                {UEN_OPCIONES.map(u=><option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Fila 4: Proceso | Subproceso */}
+          <div className="form-row">
+            <div className="form-field">
+              <label>Proceso</label>
+              <select style={iS} value={form.proceso} onChange={e=>setProceso(e.target.value)}>
+                <option value="">— Seleccione proceso —</option>
+                {PROCESOS.map(p=><option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div className="form-field">
+              <label>Subproceso</label>
+              <select
+                style={subprocesos.length===0?iSdis:iS}
+                value={form.subproceso}
+                onChange={e=>set('subproceso',e.target.value)}
+                disabled={subprocesos.length===0}>
+                <option value="">{subprocesos.length===0?'Sin subprocesos':'— Seleccione —'}</option>
+                {subprocesos.map(s=><option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Fila 5: Cargo | Rol */}
+          <div className="form-row">
+            <div className="form-field">
+              <label>Cargo *</label>
+              <input style={iS} type="text" value={form.cargo} onChange={e=>set('cargo',e.target.value)}/>
+            </div>
+            <div className="form-field">
+              <label>Rol *</label>
+              <input style={iS} type="text" value={form.rol} onChange={e=>set('rol',e.target.value)}/>
+            </div>
+          </div>
+
+          {/* Fila 6: Estado | Nueva contraseña */}
+          <div className="form-row">
+            <div className="form-field">
+              <label>Estado</label>
+              <select style={iS} value={form.estado} onChange={e=>set('estado',e.target.value)}>
+                <option value="Activo">Activo</option>
+                <option value="Inactivo">Inactivo</option>
+              </select>
+            </div>
+            <div className="form-field">
+              <label>Nueva contraseña <span style={{fontSize:10.5,color:'#9ca3af',fontWeight:400,marginLeft:6}}>(vacío = no cambiar)</span></label>
+              <div style={{position:'relative'}}>
+                <input style={{...iS,paddingRight:40}} type={showPass?'text':'password'} placeholder="••••••••" autoComplete="new-password" value={form.password} onChange={e=>set('password',e.target.value)}/>
+                <button type="button" onClick={()=>setShowPass(v=>!v)} style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',border:'none',background:'transparent',cursor:'pointer',color:'#6b7280',width:24,height:24,padding:0,display:'flex',alignItems:'center',justifyContent:'center'}} tabIndex={-1}><PT v={showPass}/></button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div className="modal-actions">
+          <button className="modal-btn-cancel" onClick={onClose} disabled={guardando}>Cancelar</button>
+          <button className="modal-btn-save" onClick={handleGuardar} disabled={guardando}>{guardando?'Guardando…':'Guardar cambios'}</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 function ModalConfirmarEliminarUsuario({usuarios:sel,onClose,onEliminado,sesion}:{usuarios:User[];onClose:()=>void;onEliminado:()=>void;sesion:Sesion}){
   const [eliminando,setEliminando]=useState(false);const[error,setError]=useState('');
@@ -247,16 +639,161 @@ function exportarExcel(usuarios:User[]){
    MÓDULO USUARIOS
 ══════════════════════════════════════════════════════════════ */
 function ModuloUsuarios({sesion,onSesionActualizada}:{sesion:Sesion;onSesionActualizada:(s:Sesion)=>void}){
-  const [usuarios,setUsuarios]=useState<User[]>([]);const[cargando,setCargando]=useState(true);const[errorCarga,setErrorCarga]=useState('');const[busqueda,setBusqueda]=useState('');const[seleccionados,setSeleccionados]=useState<number[]>([]);const[modalAbierto,setModalAbierto]=useState(false);const[modalEditar,setModalEditar]=useState<User|null>(null);const[modalEliminar,setModalEliminar]=useState(false);
-  const cargarUsuarios=useCallback(async()=>{setCargando(true);setErrorCarga('');try{const res=await fetch('/api/users');if(!res.ok)throw new Error();setUsuarios(await res.json());}catch{setErrorCarga('No se pudo cargar usuarios.');}finally{setCargando(false);};},[]);
+  const [usuarios,setUsuarios]=useState<User[]>([]);
+  const [cargando,setCargando]=useState(true);
+  const [errorCarga,setErrorCarga]=useState('');
+  const [busqueda,setBusqueda]=useState('');
+  const [seleccionados,setSeleccionados]=useState<number[]>([]);
+  const [modalAbierto,setModalAbierto]=useState(false);
+  const [modalEditar,setModalEditar]=useState<User|null>(null);
+  const [modalEliminar,setModalEliminar]=useState(false);
+  // ── PAGINACIÓN LOCAL ──────────────────────────────────────
+  const [pagina,setPagina]=useState(1);
+  const POR_PAGINA=8;
+  // ─────────────────────────────────────────────────────────
+ 
+  const cargarUsuarios=useCallback(async()=>{
+    setCargando(true);setErrorCarga('');
+    try{
+      const res=await fetch('/api/users');
+      if(!res.ok)throw new Error();
+      setUsuarios(await res.json());
+    }catch{setErrorCarga('No se pudo cargar usuarios.');}
+    finally{setCargando(false);}
+  },[]);
+ 
   useEffect(()=>{cargarUsuarios();},[cargarUsuarios]);
-  const filtrados=usuarios.filter(u=>{const q=busqueda.toLowerCase();return[u.cedula,u.entidadGrupo,u.cargo,u.email,u.usuario,u.rol].some(v=>v.toLowerCase().includes(q));});
-  const todosMarcados=filtrados.length>0&&seleccionados.length===filtrados.length;
-  const toggleAll=(c:boolean)=>setSeleccionados(c?filtrados.map(u=>u.id):[]);
+ 
+  // Resetear página al cambiar búsqueda
+  useEffect(()=>{setPagina(1);},[busqueda]);
+ 
+  const filtrados=usuarios.filter(u=>{
+    const q=busqueda.toLowerCase();
+    return[u.cedula,u.entidadGrupo,u.cargo,u.email,u.usuario,u.rol].some(v=>v.toLowerCase().includes(q));
+  });
+ 
+  // ── Paginación ────────────────────────────────────────────
+  const totalPages=Math.max(1,Math.ceil(filtrados.length/POR_PAGINA));
+  const inicio=(pagina-1)*POR_PAGINA;
+  const fin=inicio+POR_PAGINA;
+  const paginados=filtrados.slice(inicio,fin);
+ 
+  const pagesArr=(()=>{
+    const t=totalPages;
+    if(t<=7)return Array.from({length:t},(_,i)=>i+1);
+    const arr:(number|-1)[]=[];
+    arr.push(1);
+    if(pagina>3)arr.push(-1);
+    for(let i=Math.max(2,pagina-1);i<=Math.min(t-1,pagina+1);i++)arr.push(i);
+    if(pagina<t-2)arr.push(-1);
+    arr.push(t);
+    return arr;
+  })();
+  // ─────────────────────────────────────────────────────────
+ 
+  const todosMarcados=paginados.length>0&&paginados.every(u=>seleccionados.includes(u.id));
+  const toggleAll=(c:boolean)=>{
+    if(c)setSeleccionados(p=>[...new Set([...p,...paginados.map(u=>u.id)])]);
+    else setSeleccionados(p=>p.filter(id=>!paginados.map(u=>u.id).includes(id)));
+  };
   const toggleOne=(id:number,c:boolean)=>setSeleccionados(p=>c?[...p,id]:p.filter(x=>x!==id));
+ 
   if(cargando)return<div className="content"><div className="module-status">Cargando usuarios…</div></div>;
   if(errorCarga)return<div className="content"><div className="module-status error">{errorCarga}</div></div>;
-  return(<>{modalAbierto&&<ModalNuevoUsuario onClose={()=>setModalAbierto(false)} onCreado={cargarUsuarios}/>}{modalEditar&&<ModalEditarUsuario usuario={modalEditar} onClose={()=>setModalEditar(null)} onGuardado={(updatedUser)=>{setSeleccionados([]);cargarUsuarios();if(updatedUser.email===sesion.email){const s:Sesion={usuario:updatedUser.usuario,cargo:updatedUser.cargo,email:updatedUser.email,entidadGrupo:updatedUser.entidadGrupo,rol:updatedUser.rol};guardarSesion(s);onSesionActualizada(s);}}}/>}{modalEliminar&&<ModalConfirmarEliminarUsuario usuarios={usuarios.filter(u=>seleccionados.includes(u.id))} onClose={()=>setModalEliminar(false)} onEliminado={()=>{setSeleccionados([]);cargarUsuarios();}} sesion={sesion}/>}<div className="content"><div className="page-header"><div className="page-title"><IcoUsuarios/><span>Usuarios : {filtrados.length} / {usuarios.length}</span></div><div className="page-actions"><input type="text" className="search-box" placeholder="Buscar…" value={busqueda} onChange={e=>setBusqueda(e.target.value)}/><button className="icon-btn" title="Información"><IcoInfo/></button><button className="icon-btn" title="Actualizar" onClick={()=>{setBusqueda('');cargarUsuarios();}}><IcoRefresh/></button><button className="icon-btn blue-fill" title="Nuevo usuario" onClick={()=>setModalAbierto(true)}><IcoPlus/></button><button className="icon-btn" title="Editar" disabled={seleccionados.length!==1} onClick={()=>{const u=usuarios.find(u=>u.id===seleccionados[0]);if(u)setModalEditar(u);}}><IcoPencil/></button><button className="icon-btn red" title="Eliminar" disabled={seleccionados.length===0} onClick={()=>setModalEliminar(true)}><IcoTrash/></button><button className="icon-btn green" title="Exportar Excel" onClick={()=>exportarExcel(filtrados)}><IcoExcel/></button></div></div><div className="table-card"><div className="table-scroll"><table><thead><tr><th style={{width:36}}><div className="th-top"><input type="checkbox" className="cbx" checked={todosMarcados} onChange={e=>toggleAll(e.target.checked)}/></div></th>{([[140,'Cédula'],[130,'Celular'],[180,'Entidad del grupo'],[180,'Cargo'],[220,'Email'],[160,'Usuario'],[160,'Rol'],[110,'Estado']] as [number,string][]).map(([w,label])=><th key={label} style={{minWidth:w}}><div className="th-top">{label}</div></th>)}<th style={{minWidth:110,textAlign:'center'}}><div className="th-top">Firma digital</div></th></tr><tr><th/>{Array.from({length:9}).map((_,i)=><th key={i}><div style={{padding:'0 10px 5px',color:'#d1d5db',fontSize:11}}>≡</div></th>)}</tr></thead><tbody>{filtrados.length===0?<tr><td colSpan={10} style={{textAlign:'center',color:'#6b7280',padding:'28px 10px'}}>{busqueda?'Sin resultados.':'No hay usuarios registrados.'}</td></tr>:filtrados.map(u=><tr key={u.id}><td className="center"><input type="checkbox" className="cbx" checked={seleccionados.includes(u.id)} onChange={e=>toggleOne(u.id,e.target.checked)}/></td><td>{u.cedula}</td><td>{u.celular}</td><td>{u.entidadGrupo}</td><td>{u.cargo}</td><td>{u.email}</td><td>{u.usuario}</td><td>{u.rol}</td><td><span className="badge" style={{background:u.estado==='Activo'?'#d1fae5':'#fee2e2',color:u.estado==='Activo'?'#065f46':'#dc2626',fontSize:11}}>{u.estado}</span></td><td style={{textAlign:'center'}}><button className="firma-btn" title="Cargar firma digital" onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#EAF2FB';}} onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';}}><IcoUpload/></button></td></tr>)}</tbody></table></div><div className="pagination-bar"><span>{filtrados.length>0?`1 - ${filtrados.length} de ${usuarios.length}`:`0 de ${usuarios.length}`}</span></div></div></div></>);
+ 
+  return(
+    <>
+      {modalAbierto&&<ModalNuevoUsuario onClose={()=>setModalAbierto(false)} onCreado={cargarUsuarios}/>}
+      {modalEditar&&<ModalEditarUsuario usuario={modalEditar} onClose={()=>setModalEditar(null)} onGuardado={(updatedUser)=>{setSeleccionados([]);cargarUsuarios();if(updatedUser.email===sesion.email){const s:Sesion={usuario:updatedUser.usuario,cargo:updatedUser.cargo,email:updatedUser.email,entidadGrupo:updatedUser.entidadGrupo,rol:updatedUser.rol};guardarSesion(s);onSesionActualizada(s);}}}/>}
+      {modalEliminar&&<ModalConfirmarEliminarUsuario usuarios={usuarios.filter(u=>seleccionados.includes(u.id))} onClose={()=>setModalEliminar(false)} onEliminado={()=>{setSeleccionados([]);cargarUsuarios();}} sesion={sesion}/>}
+ 
+      <div className="content">
+        <div className="page-header">
+          <div className="page-title"><IcoUsuarios/><span>Usuarios : {filtrados.length} / {usuarios.length}</span></div>
+          <div className="page-actions">
+            <input type="text" className="search-box" placeholder="Buscar…" value={busqueda} onChange={e=>setBusqueda(e.target.value)}/>
+            <button className="icon-btn" title="Información"><IcoInfo/></button>
+            <button className="icon-btn" title="Actualizar" onClick={()=>{setBusqueda('');cargarUsuarios();}}><IcoRefresh/></button>
+            <button className="icon-btn blue-fill" title="Nuevo usuario" onClick={()=>setModalAbierto(true)}><IcoPlus/></button>
+            <button className="icon-btn" title="Editar" disabled={seleccionados.length!==1} onClick={()=>{const u=usuarios.find(u=>u.id===seleccionados[0]);if(u)setModalEditar(u);}}><IcoPencil/></button>
+            <button className="icon-btn red" title="Eliminar" disabled={seleccionados.length===0} onClick={()=>setModalEliminar(true)}><IcoTrash/></button>
+            <button className="icon-btn green" title="Exportar Excel" onClick={()=>exportarExcel(filtrados)}><IcoExcel/></button>
+          </div>
+        </div>
+ 
+        <div className="table-card">
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{width:36}}>
+                    <div className="th-top">
+                      <input type="checkbox" className="cbx" checked={todosMarcados} onChange={e=>toggleAll(e.target.checked)}/>
+                    </div>
+                  </th>
+                  {([[160,'Usuario'],[140,'Cédula'],[220,'Email'],[130,'Celular'],[180,'Entidad del grupo'],[120,'UEN'],[160,'Proceso'],[160,'Subproceso'],[180,'Cargo'],[160,'Rol'],[110,'Estado']] as [number,string][]).map(([w,label])=>(                    <th key={label} style={{minWidth:w}}><div className="th-top">{label}</div></th>
+                  ))}
+                  <th style={{minWidth:110,textAlign:'center'}}><div className="th-top">Firma digital</div></th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginados.length===0
+                  ?<tr><td colSpan={13} style={{textAlign:'center',color:'#94a3b8',padding:'28px 10px',fontSize:12}}>{busqueda?`Sin resultados para "${busqueda}".`:'No hay usuarios registrados.'}</td></tr>
+                  :paginados.map(u=>(
+                    <tr key={u.id}>
+                      <td className="center"><input type="checkbox" className="cbx" checked={seleccionados.includes(u.id)} onChange={e=>toggleOne(u.id,e.target.checked)}/></td>
+                      <td>{u.usuario}</td>
+                      <td>{u.cedula}</td>
+                      <td>{u.email}</td>
+                      <td>{u.celular}</td>
+                      <td>{u.entidadGrupo}</td>
+                      <td>{u.uen||'—'}</td>
+                      <td>{u.proceso||'—'}</td>
+                      <td>{u.subproceso||'—'}</td>
+                      <td>{u.cargo}</td>
+                      <td>{u.rol}</td>
+                      <td><span className="badge" style={{background:u.estado==='Activo'?'#d1fae5':'#fee2e2',color:u.estado==='Activo'?'#065f46':'#dc2626'}}>{u.estado}</span></td>
+                      <td style={{textAlign:'center'}}>
+                        <button className="firma-btn" title="Cargar firma digital"
+                          onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#EAF2FB';}}
+                          onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';}}>
+                          <IcoUpload/>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
+ 
+          {/* PAGINACIÓN */}
+          <div className="pagination-bar">
+            <span>
+              {filtrados.length>0
+                ?`${inicio+1}–${Math.min(fin,filtrados.length)} de ${filtrados.length} usuarios`
+                :'0 usuarios'}
+            </span>
+            <div className="pages">
+              <button className="page-btn page-btn-nav" onClick={()=>setPagina(p=>p-1)} disabled={pagina<=1}>
+                <svg viewBox="0 0 8 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M7 1L1 7l6 6"/></svg>
+                Anterior
+              </button>
+              {pagesArr.map((n,i)=>
+                n===-1
+                  ?<span key={`el${i}`} style={{padding:'0 3px',color:'#9ca3af',fontSize:12}}>…</span>
+                  :<button key={n} className={`page-btn${n===pagina?' active':''}`} onClick={()=>setPagina(n)}>{n}</button>
+              )}
+              <button className="page-btn page-btn-nav" onClick={()=>setPagina(p=>p+1)} disabled={pagina>=totalPages}>
+                Siguiente
+                <svg viewBox="0 0 8 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M1 1l6 6-6 6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -268,32 +805,295 @@ function ModalDocumentos({p,onClose}:{p:LiciProceso;onClose:()=>void}){
   return(<div className="modal-overlay" style={{zIndex:1100}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div style={{background:'white',borderRadius:12,width:'92vw',maxWidth:760,maxHeight:'88vh',display:'flex',flexDirection:'column',boxShadow:'0 20px 60px rgba(15,32,64,.18)',overflow:'hidden',border:'1px solid #e2e8f0'}}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'18px 24px',borderBottom:'1px solid #f1f5f9',flexShrink:0}}><div><h3 style={{margin:0,fontSize:15,fontWeight:700,color:'#0f172a'}}>Documentos del proceso</h3><div style={{fontSize:11.5,color:'#64748b',marginTop:3}}>{p.entidad||''}{p.codigoProceso?` · ${p.codigoProceso}`:''}</div></div><button onClick={onClose} style={{width:30,height:30,borderRadius:'50%',background:'white',border:'1px solid #e2e8f0',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#94a3b8'}} onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#fef2f2';(e.currentTarget as HTMLButtonElement).style.color='#ef4444';}} onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';(e.currentTarget as HTMLButtonElement).style.color='#94a3b8';}}><svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M18 6L6 18M6 6l12 12"/></svg></button></div><div style={{padding:'10px 24px',background:'#EAF2FB',borderBottom:'1px solid #D0E4F3',flexShrink:0,display:'flex',alignItems:'center',gap:10}}><div style={{width:28,height:28,borderRadius:6,background:'#1E5799',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><svg fill="none" stroke="white" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg></div><span style={{fontSize:12.5,color:'#1E5799',fontWeight:500}}><strong style={{fontWeight:700}}>{docs.length}</strong> documento{docs.length!==1?'s':''} disponible{docs.length!==1?'s':''} para descarga</span></div><div style={{overflowY:'auto',flex:1,padding:'14px 20px',display:'flex',flexDirection:'column',gap:6}}>{docs.length===0?<div style={{textAlign:'center',color:'#94a3b8',padding:'40px 0',fontSize:13}}>No hay documentos disponibles.</div>:docs.map((d,i)=>{const ext=extInfo(d);const url=d.ruta||d.url||'';return(<div key={i} style={{display:'flex',alignItems:'center',gap:12,background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 14px'}} onMouseOver={e=>{(e.currentTarget as HTMLDivElement).style.borderColor='#A8CCEC';(e.currentTarget as HTMLDivElement).style.background='#FAFCFF';}} onMouseOut={e=>{(e.currentTarget as HTMLDivElement).style.borderColor='#e2e8f0';(e.currentTarget as HTMLDivElement).style.background='white';}}><div style={{width:40,height:40,borderRadius:8,flexShrink:0,background:ext.bg,border:`1px solid ${ext.border}`,color:ext.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800}}>{ext.label}</div><div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,color:'#1e293b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.nombre||`Documento ${i+1}`}</div>{url&&<div style={{fontSize:10.5,color:'#94a3b8',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{url}</div>}</div>{url?<a href={url} target="_blank" rel="noopener noreferrer" style={{flexShrink:0,display:'inline-flex',alignItems:'center',gap:5,height:30,padding:'0 14px',borderRadius:6,background:'#1E5799',color:'white',fontSize:11.5,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap'}}><svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:12,height:12}}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Descargar</a>:<span style={{fontSize:11,color:'#94a3b8',flexShrink:0}}>Sin enlace</span>}</div>);})}</div><div style={{padding:'10px 20px',borderTop:'1px solid #f1f5f9',flexShrink:0,display:'flex',justifyContent:'flex-end'}}><button onClick={onClose} style={{height:32,padding:'0 18px',borderRadius:6,border:'1px solid #e2e8f0',background:'white',color:'#374151',fontSize:12,fontWeight:500,fontFamily:'var(--font)',cursor:'pointer'}}>Cerrar</button></div></div></div>);
 }
 
-function CopiarLinkBtn({url}:{url:string}){const[copiado,setCopiado]=React.useState(false);const copiar=(e:React.MouseEvent)=>{e.stopPropagation();navigator.clipboard.writeText(url).then(()=>{setCopiado(true);setTimeout(()=>setCopiado(false),1800);});};return(<button onClick={copiar} style={{flexShrink:0,display:'inline-flex',alignItems:'center',gap:5,height:30,padding:'0 14px',borderRadius:20,border:'1.5px solid #16a34a',color:copiado?'white':'#16a34a',background:copiado?'#16a34a':'white',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',whiteSpace:'nowrap',transition:'all .2s'}}>{copiado?<><svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:11,height:11}}><path d="M20 6L9 17l-5-5"/></svg>Copiado</>:<><svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copiar link</>}</button>);}
-function useSecopLink(codigoProceso:string,aliasFuente:string){const[link,setLink]=React.useState<string|null>(null);const[loading,setLoading]=React.useState(false);React.useEffect(()=>{if(!codigoProceso)return;const alias=aliasFuente.toUpperCase();if(alias!=='S1'&&alias!=='S2')return;setLoading(true);fetch(`/api/licitaciones/secop-link?codigo=${encodeURIComponent(codigoProceso)}&alias=${alias}`).then(r=>r.json()).then(data=>{if(data.ok&&data.link)setLink(data.link);}).catch(()=>{}).finally(()=>setLoading(false));},[codigoProceso,aliasFuente]);return{link,loading};}
+function CopiarLinkBtn({url}:{url:string}){
+  const[copiado,setCopiado]=React.useState(false);
+  const copiar=(e:React.MouseEvent)=>{
+    e.stopPropagation();
+    navigator.clipboard.writeText(url).then(()=>{
+      setCopiado(true);
+      setTimeout(()=>setCopiado(false),1800);
+    });
+  };
+  return(
+    <button onClick={copiar} style={{
+      flexShrink:0,
+      display:'inline-flex',
+      alignItems:'center',
+      gap:5,
+      height:28,
+      padding:'0 12px',
+      borderRadius:6,
+      border:'1.5px solid #e2e8f0',
+      color:'#475569',
+      background:copiado?'#f8fafc':'white',
+      fontSize:11,
+      fontWeight:600,
+      cursor:'pointer',
+      fontFamily:'var(--font)',
+      whiteSpace:'nowrap' as const,
+      transition:'all .2s',
+    }}>
+      {copiado
+        ?<><svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:11,height:11}}><path d="M20 6L9 17l-5-5"/></svg>Copiado</>
+        :<><svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copiar</>
+      }
+    </button>
+  );
+}function useSecopLink(codigoProceso:string,aliasFuente:string){const[link,setLink]=React.useState<string|null>(null);const[loading,setLoading]=React.useState(false);React.useEffect(()=>{if(!codigoProceso)return;const alias=aliasFuente.toUpperCase();if(alias!=='S1'&&alias!=='S2')return;setLoading(true);fetch(`/api/licitaciones/secop-link?codigo=${encodeURIComponent(codigoProceso)}&alias=${alias}`).then(r=>r.json()).then(data=>{if(data.ok&&data.link)setLink(data.link);}).catch(()=>{}).finally(()=>setLoading(false));},[codigoProceso,aliasFuente]);return{link,loading};}
 
 function VerDocumentosBtn({p}:{p:LiciProceso}){const[open,setOpen]=React.useState(false);return(<>{open&&<ModalDocumentos p={p} onClose={()=>setOpen(false)}/>}<button onClick={e=>{e.stopPropagation();setOpen(true);}} style={{display:'inline-flex',alignItems:'center',gap:6,height:28,padding:'0 14px',borderRadius:20,border:'1.5px solid #1E5799',color:'#1E5799',background:'white',fontSize:11,fontWeight:600,fontFamily:'var(--font)',cursor:'pointer'}}><svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Ver documentos{(p.documentos?.length??0)>0?` (${p.documentos!.length})`:''}</button></>);}
 
 function ModalDetalleProceso({p,onClose,onGestionar}:{p:LiciProceso;onClose:()=>void;onGestionar?:()=>Promise<void>}){
-  const [guardando,setGuardando]=useState(false);const[errorGuardar,setErrorGuardar]=useState('');
+  const [docVista,setDocVista]=React.useState<'grid'|'list'>('list');
+  const [guardando,setGuardando]=useState(false);
+  const [errorGuardar,setErrorGuardar]=useState('');
+
   const fmt=(raw:string|null)=>{if(!raw)return null;const d=new Date(raw.replace(' ','T'));if(Number.isNaN(d.getTime()))return raw;return d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'})+' · '+d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});};
   const fmtV=(v:number|null)=>{if(v==null||Number.isNaN(v)||v===0)return null;return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(v);};
+
   const portal=portalColorModal(p.aliasFuente||'',p.fuente||'',p.fuente||'');
-  const eb=estadoModalColor(p.estado||'');const pc=p.perfil?perfilColor(p.perfil):null;
+  const eb=estadoModalColor(p.estado||'');
+  const pc=p.perfil?perfilColor(p.perfil):null;
   const {link:secopLink,loading:secopLoading}=useSecopLink(p.codigoProceso||'',p.aliasFuente||'');
-  const modalidad=p.modalidad?(MMAP_MODALIDAD[p.modalidad]??p.modalidad):null;const valor=fmtV(p.valor);
-  const hasDoc=p.documentos&&p.documentos.length>0;const hasCron=p.cronogramas&&p.cronogramas.length>0;
+  const modalidadLabel=p.modalidad?(MMAP_MODALIDAD[p.modalidad]??p.modalidad):null;
+  const valor=fmtV(p.valor);
+  const hasDoc=p.documentos&&p.documentos.length>0;
+  const hasCron=p.cronogramas&&p.cronogramas.length>0;
+
   const fuentes:Array<{label:string;url:string}>=[];
   if(p.fuentes?.length){p.fuentes.forEach(f=>{const u=String(f.url||f.link||'');if(u)fuentes.push({label:String(f.nombre||portal.label),url:u});});}
   if(!fuentes.length&&p.linkSecop)fuentes.push({label:portal.label,url:p.linkSecop});
   if(!fuentes.length&&p.linkDetalle)fuentes.push({label:portal.label,url:p.linkDetalle});
-  const sT:React.CSSProperties={fontSize:11,fontWeight:700,color:'#1E5799',textTransform:'uppercase',letterSpacing:'0.07em',paddingBottom:10,marginBottom:2,borderBottom:'1px solid #f1f5f9'};
-  const rB:React.CSSProperties={display:'flex',justifyContent:'space-between',alignItems:'baseline',padding:'8px 0',borderBottom:'1px solid #f8fafc',fontSize:12.5};
-  const rL:React.CSSProperties={color:'#64748b',flex:1,paddingRight:16};
-  const rV:React.CSSProperties={color:'#1e293b',whiteSpace:'nowrap',textAlign:'right' as const};
-  const hG=async()=>{if(!onGestionar)return;setGuardando(true);setErrorGuardar('');try{await onGestionar();}catch(e){setErrorGuardar(e instanceof Error?e.message:'Error al guardar.');}finally{setGuardando(false);}};
-  return(<div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div style={{background:'white',borderRadius:12,width:'94vw',maxWidth:840,maxHeight:'92vh',display:'flex',flexDirection:'column',boxShadow:'0 16px 48px rgba(15,32,64,.16)',overflow:'hidden',border:'1px solid #e2e8f0'}}><div style={{background:'white',borderBottom:'1px solid #f1f5f9',padding:'18px 24px',flexShrink:0}}><div style={{display:'flex',alignItems:'flex-start',gap:14}}><div style={{width:42,height:42,borderRadius:'50%',background:portal.bg,color:portal.color,fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{portal.short}</div><div style={{flex:1,minWidth:0}}><div style={{fontSize:15,fontWeight:600,color:'#0f172a',marginBottom:6,lineHeight:1.3}}>{p.entidad||'Detalle del proceso'}</div><div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>{p.codigoProceso&&<span style={{fontSize:11,color:'#64748b',background:'#f1f5f9',padding:'2px 8px',borderRadius:4}}>{p.codigoProceso}</span>}{p.estado&&<span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,color:eb.color,background:eb.bg,padding:'3px 10px',borderRadius:20}}><span style={{width:5,height:5,borderRadius:'50%',background:eb.dot,flexShrink:0}}/>{p.estado}</span>}{pc&&<span style={{fontSize:11,color:pc.color,background:pc.bg,padding:'3px 10px',borderRadius:20,fontWeight:600}}>{pc.label}</span>}</div></div><button onClick={onClose} style={{width:28,height:28,borderRadius:'50%',border:'1px solid #e2e8f0',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#94a3b8',flexShrink:0}}><svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M18 6L6 18M6 6l12 12"/></svg></button></div></div><div style={{overflowY:'auto',flex:1,padding:'14px 24px 18px',display:'flex',flexDirection:'column',gap:10}}>{(p.objeto||p.nombre)&&<div style={{background:'#FAFCFF',border:'1px solid #D0E4F3',borderRadius:8,padding:'12px 16px'}}><div style={{fontSize:10,fontWeight:700,color:'#1E5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',marginBottom:6}}>Objeto del proceso</div><p style={{margin:0,fontSize:13,color:'#1e293b',lineHeight:1.65}}>{p.objeto||p.nombre}</p></div>}<div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px'}}><div style={sT}>Información general</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',columnGap:32}}>{[{label:'Entidad',value:<strong style={{fontWeight:600}}>{p.entidad||'—'}</strong>},{label:'Número del proceso',value:p.codigoProceso||'—'},...(modalidad?[{label:'Modalidad',value:modalidad}]:[]),{label:'Fuente / portal',value:portal.label},{label:'Estado',value:<span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,color:eb.color,background:eb.bg,padding:'2px 10px',borderRadius:20}}><span style={{width:5,height:5,borderRadius:'50%',background:eb.dot}}/>{p.estado||'—'}</span>},...(p.departamento?[{label:'Localización',value:p.departamento}]:[]),...(valor?[{label:'Presupuesto oficial',value:<span style={{fontWeight:700,color:'#15803d'}}>{valor}</span>}]:[]),...(pc?[{label:'Perfil de negocio',value:<span style={{color:pc.color,fontWeight:600}}>{pc.label}</span>}]:[])].map((item,i)=><div key={i} style={{padding:'9px 0',borderBottom:'1px solid #f8fafc'}}><div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase' as const,letterSpacing:'0.06em',marginBottom:3}}>{item.label}</div><div style={{fontSize:12.5,color:'#1e293b'}}>{item.value}</div></div>)}</div></div><div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px'}}><div style={sT}>Cronograma de fechas</div>{fmt(p.fechaPublicacion)&&<div style={rB}><span style={rL}>Fecha de publicación</span><span style={rV}>{fmt(p.fechaPublicacion)}</span></div>}{fmt(p.fechaVencimiento)&&<div style={{...rB,borderBottom:hasCron?'1px solid #f8fafc':'none'}}><span style={rL}>Fecha de vencimiento</span><span style={{...rV,color:'#dc2626',fontWeight:600}}>{fmt(p.fechaVencimiento)}</span></div>}{hasCron&&p.cronogramas!.map((cr,i)=><div key={i} style={{...rB,borderBottom:i<p.cronogramas!.length-1?'1px solid #f8fafc':'none'}}><span style={rL}>{cr.nombre||`Etapa ${i+1}`}</span><span style={rV}>{cr.fecha||'—'}</span></div>)}</div>{fuentes.length>0&&<div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px'}}><div style={sT}>Fuentes relacionadas</div>{fuentes.map((f,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:i>0?'8px 0 0':'2px 0 0'}}><span style={{fontSize:11,fontWeight:600,color:'#475569',flexShrink:0,minWidth:64}}>{f.label}</span><a href={f.url} target="_blank" rel="noopener noreferrer" style={{fontSize:11.5,color:'#1E5799',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.url}</a><CopiarLinkBtn url={f.url}/></div>)}</div>}{p.linkDetalle&&<div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px'}}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}><div><div style={{fontSize:11,fontWeight:700,color:'#1E5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',marginBottom:3}}>Documentos del proceso</div><div style={{fontSize:12,color:'#94a3b8'}}>{hasDoc?`${p.documentos!.length} documento${p.documentos!.length!==1?'s':''} disponible${p.documentos!.length!==1?'s':''}`:''}</div></div><VerDocumentosBtn p={p}/></div></div>}{errorGuardar&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 14px',color:'#dc2626',fontSize:12}}>⚠️ {errorGuardar}</div>}</div><div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:8,padding:'12px 24px',borderTop:'1px solid #e2e8f0',background:'white',flexShrink:0}}>{(secopLink||p.linkDetalle)&&<a href={secopLink||p.linkDetalle} target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:6,height:34,padding:'0 14px',borderRadius:8,border:'1px solid #D0E4F3',background:'white',color:secopLoading?'#94a3b8':'#1E5799',fontSize:12,fontWeight:500,textDecoration:'none'}}><svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>{secopLoading?'Buscando link…':'Abrir en portal'}</a>}{onGestionar&&<button onClick={hG} disabled={guardando} style={{display:'inline-flex',alignItems:'center',gap:6,height:34,padding:'0 16px',borderRadius:8,background:guardando?'#6b93c4':'#1E5799',color:'white',border:'none',fontSize:12,fontWeight:600,fontFamily:'var(--font)',cursor:guardando?'not-allowed':'pointer'}}><svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>{guardando?'Guardando…':'Gestionar proceso'}</button>}<button onClick={onClose} style={{height:34,padding:'0 16px',borderRadius:8,border:'1px solid #e2e8f0',background:'white',color:'#374151',fontSize:12,fontFamily:'var(--font)',cursor:'pointer'}}>Cerrar</button></div></div></div>);
-}
 
+  const hG=async()=>{if(!onGestionar)return;setGuardando(true);setErrorGuardar('');try{await onGestionar();}catch(e){setErrorGuardar(e instanceof Error?e.message:'Error al guardar.');}finally{setGuardando(false);}};
+
+  // ── Estilos base uniformes ──
+  const F='var(--font)';
+  const FS=13;
+  const FC='#334155';
+  const FC_LABEL='#94a3b8';
+  const FC_DARK='#0f172a';
+  const baseText:React.CSSProperties={fontSize:FS,color:FC,fontFamily:F,lineHeight:1.5};
+  const labelStyle:React.CSSProperties={fontSize:9,fontWeight:700,color:FC_LABEL,letterSpacing:'0.1em',textTransform:'uppercase' as const,fontFamily:F,marginBottom:4};
+  const secTitle:React.CSSProperties={fontSize:13,fontWeight:700,color:'#0f172a',fontFamily:F,letterSpacing:'-0.01em',marginBottom:12,paddingBottom:8,borderBottom:'1px solid #f1f5f9'};
+
+  const SideItem=({label,children}:{label:string;children:React.ReactNode})=>(
+  <div>
+    <div style={{fontSize:10,fontWeight:700,color:'#374151',letterSpacing:'0.04em',textTransform:'uppercase' as const,fontFamily:F,marginBottom:4}}>{label}</div>
+    <div style={{...baseText,fontSize:12.5}}>{children}</div>
+  </div>
+);
+
+  React.useEffect(()=>{
+    const cols=document.querySelectorAll('.modal-scroll-col');
+    cols.forEach(col=>{
+      col.addEventListener('mouseenter',()=>{(col as HTMLElement).style.scrollbarColor='#94a3b8 transparent';});
+      col.addEventListener('mouseleave',()=>{(col as HTMLElement).style.scrollbarColor='transparent transparent';});
+    });
+  },[]);
+
+  return(
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{background:'white',borderRadius:16,width:'96vw',maxWidth:980,maxHeight:'92vh',display:'flex',flexDirection:'column' as const,boxShadow:'0 24px 64px rgba(15,23,42,0.18)',overflow:'hidden',border:'1px solid #e2e8f0'}}>
+
+        {/* HEADER */}
+        <div style={{background:'white',borderBottom:'1px solid #f1f5f9',padding:'16px 24px',flexShrink:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:14}}>
+            <div style={{width:42,height:42,borderRadius:10,background:'#1e5799',color:'white',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,letterSpacing:'0.04em',fontFamily:F}}>{portal.short}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:15,fontWeight:700,color:FC_DARK,letterSpacing:'-0.02em',lineHeight:1.25,marginBottom:5,fontFamily:F}}>{p.entidad||'Detalle del proceso'}</div>
+              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap' as const}}>
+                {p.codigoProceso&&<span style={{fontSize:11,color:'#64748b',background:'#f8fafc',border:'1px solid #e8edf2',padding:'2px 9px',borderRadius:5,fontFamily:'monospace'}}>{p.codigoProceso}</span>}
+                {pc&&<span style={{fontSize:11,color:pc.color,background:pc.bg,padding:'2px 9px',borderRadius:999,fontWeight:600,fontFamily:F}}>{pc.label}</span>}
+              </div>
+            </div>
+            <button onClick={onClose} style={{width:30,height:30,borderRadius:8,border:'1.5px solid #e2e8f0',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#94a3b8',flexShrink:0,transition:'all .15s'}}
+              onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#fef2f2';(e.currentTarget as HTMLButtonElement).style.color='#ef4444';(e.currentTarget as HTMLButtonElement).style.borderColor='#fca5a5';}}
+              onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';(e.currentTarget as HTMLButtonElement).style.color='#94a3b8';(e.currentTarget as HTMLButtonElement).style.borderColor='#e2e8f0';}}>
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* BODY: 2 columnas */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 280px',flex:1,minHeight:0,overflow:'hidden'}}>
+
+          {/* COL IZQUIERDA */}
+          <div className="modal-scroll-col" style={{overflowY:'auto',padding:'20px 24px',display:'flex',flexDirection:'column' as const,gap:22,scrollbarWidth:'thin' as const,scrollbarColor:'transparent transparent'}}>
+
+            {/* 1. Objeto */}
+            {(p.objeto||p.nombre)&&(
+              <div>
+                <div style={secTitle}>Objeto del proceso</div>
+                <p style={{margin:0,...baseText,lineHeight:1.7}}>
+                  {(p.objeto||p.nombre||'').charAt(0).toUpperCase()+(p.objeto||p.nombre||'').slice(1).toLowerCase()}
+                </p>
+              </div>
+            )}
+
+            {/* 2. Cronograma */}
+            {(p.fechaPublicacion||p.fechaVencimiento||hasCron)&&(
+              <div>
+                <div style={secTitle}>Cronograma de fechas</div>
+                <div style={{display:'flex',flexDirection:'column' as const}}>
+                  {fmt(p.fechaPublicacion)&&(
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #f8fafc'}}>
+                      <span style={{...baseText,color:'#64748b'}}>Fecha de publicación</span>
+                      <span style={baseText}>{fmt(p.fechaPublicacion)}</span>
+                    </div>
+                  )}
+                  {fmt(p.fechaVencimiento)&&(
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:hasCron?'1px solid #f8fafc':'none'}}>
+                      <span style={{...baseText,color:'#64748b'}}>Fecha de vencimiento</span>
+                      <span style={baseText}>{fmt(p.fechaVencimiento)}</span>
+                    </div>
+                  )}
+                  {hasCron&&p.cronogramas!.map((cr,i)=>(
+                    <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:i<p.cronogramas!.length-1?'1px solid #f8fafc':'none'}}>
+                      <span style={{...baseText,color:'#64748b',flex:1,paddingRight:16}}>{cr.nombre||`Etapa ${i+1}`}</span>
+                      <span style={{...baseText,whiteSpace:'nowrap' as const}}>{cr.fecha||'—'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 3. Documentos */}
+            {hasDoc&&(
+              <div>
+                <div style={{...secTitle,display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                  <span>Documentos ({p.documentos!.length})</span>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    {[{v:'grid',ico:<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>},{v:'list',ico:<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>}].map(({v,ico})=>(
+                      <button key={v} onClick={()=>setDocVista(v as 'grid'|'list')}
+                        style={{width:30,height:28,borderRadius:6,border:'1.5px solid #e2e8f0',background:docVista===v?'#1e5799':'white',color:docVista===v?'white':'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .15s'}}>
+                        {ico}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {docVista==='grid'
+                  ?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(100px,1fr))',gap:10}}>
+                    {p.documentos!.map((d,i)=>{
+                      const url=String(d.url||d.link||d.ruta||'');
+                      const s=url.toLowerCase();
+                      const ext=s.includes('.xlsx')||s.includes('.xls')?{bg:'#f0fdf4',color:'#475569',label:'XLS'}:s.includes('.docx')||s.includes('.doc')?{bg:'#eff6ff',color:'#1d4ed8',label:'DOC'}:s.includes('.zip')||s.includes('.rar')?{bg:'#faf5ff',color:'#7e22ce',label:'ZIP'}:{bg:'#fff1f2',color:'#be123c',label:'PDF'};
+                      return(
+                        <a key={i} href={url||'#'} target="_blank" rel="noopener noreferrer"
+                          style={{display:'flex',flexDirection:'column' as const,alignItems:'center',gap:8,padding:'12px 8px',border:'1px solid #f1f5f9',borderRadius:10,textDecoration:'none',background:'white',transition:'all .15s',position:'relative' as const}}
+                          onMouseOver={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#e2e8f0';(e.currentTarget as HTMLAnchorElement).style.background='#fafcff';const btn=e.currentTarget.querySelector('.doc-dl-btn') as HTMLElement;if(btn)btn.style.opacity='1';}}
+                          onMouseOut={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#f1f5f9';(e.currentTarget as HTMLAnchorElement).style.background='white';const btn=e.currentTarget.querySelector('.doc-dl-btn') as HTMLElement;if(btn)btn.style.opacity='0';}}>
+                          <div className="doc-dl-btn" style={{position:'absolute' as const,top:6,right:6,width:22,height:22,borderRadius:5,background:'#1e5799',display:'flex',alignItems:'center',justifyContent:'center',opacity:0,transition:'opacity .15s'}}>
+                            <svg fill="none" stroke="white" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:11,height:11}}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          </div>
+                          <div style={{width:48,height:56,borderRadius:'4px 12px 4px 4px',background:ext.bg,border:`1.5px solid ${ext.color}20`,display:'flex',alignItems:'flex-end',justifyContent:'center',paddingBottom:7,position:'relative' as const}}>
+                            <div style={{position:'absolute' as const,top:0,right:0,width:12,height:12,background:'white',borderLeft:`1.5px solid ${ext.color}20`,borderBottom:`1.5px solid ${ext.color}20`,borderRadius:'0 0 0 4px'}}/>
+                            <span style={{fontSize:8,fontWeight:800,color:ext.color,letterSpacing:'0.05em',fontFamily:F}}>{ext.label}</span>
+                          </div>
+                          <div style={{fontSize:10.5,fontWeight:500,color:'#334155',fontFamily:F,textAlign:'center' as const,lineHeight:1.35,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical' as const,maxWidth:'100%'}}>{String(d.nombre||d.titulo||`Documento ${i+1}`)}</div>
+                        </a>
+                      );
+                    })}
+                  </div>
+                  :<div style={{display:'flex',flexDirection:'column' as const,gap:0}}>
+                    {p.documentos!.map((d,i)=>{
+                      const url=String(d.url||d.link||d.ruta||'');
+                      const s=url.toLowerCase();
+                      const ext=s.includes('.xlsx')||s.includes('.xls')?{bg:'#f0fdf4',color:'#475569',label:'XLS'}:s.includes('.docx')||s.includes('.doc')?{bg:'#eff6ff',color:'#1d4ed8',label:'DOC'}:s.includes('.zip')||s.includes('.rar')?{bg:'#faf5ff',color:'#7e22ce',label:'ZIP'}:{bg:'#fff1f2',color:'#be123c',label:'PDF'};
+                      return(
+                        <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:i<p.documentos!.length-1?'1px solid #f8fafc':'none'}}>
+                          <div style={{width:32,height:38,borderRadius:'3px 8px 3px 3px',background:ext.bg,border:`1px solid ${ext.color}20`,display:'flex',alignItems:'flex-end',justifyContent:'center',paddingBottom:5,position:'relative' as const,flexShrink:0}}>
+                            <div style={{position:'absolute' as const,top:0,right:0,width:9,height:9,background:'white',borderLeft:`1px solid ${ext.color}20`,borderBottom:`1px solid ${ext.color}20`,borderRadius:'0 0 0 3px'}}/>
+                            <span style={{fontSize:7,fontWeight:800,color:ext.color,fontFamily:F}}>{ext.label}</span>
+                          </div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:12.5,fontWeight:600,color:'#1e293b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' as const,fontFamily:F}}>{String(d.nombre||d.titulo||`Documento ${i+1}`)}</div>
+                            {String(d.tipo||d.categoria||'')&&<div style={{fontSize:11,color:FC_LABEL,marginTop:1,fontFamily:F}}>{String(d.tipo||d.categoria||'')}</div>}
+                          </div>
+                          {url&&(
+                            <a href={url} target="_blank" rel="noopener noreferrer"
+                              style={{flexShrink:0,width:28,height:28,borderRadius:6,border:'1px solid #e2e8f0',background:'white',display:'flex',alignItems:'center',justifyContent:'center',color:'#64748b',transition:'all .15s'}}
+                              onMouseOver={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#1e5799';(e.currentTarget as HTMLAnchorElement).style.color='#1e5799';}}
+                              onMouseOut={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#e2e8f0';(e.currentTarget as HTMLAnchorElement).style.color='#64748b';}}>
+                              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                }
+              </div>
+            )}
+
+            {/* 4. Observaciones / error */}
+            {errorGuardar&&(
+              <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 14px',color:'#dc2626',fontSize:12,fontFamily:F}}>⚠️ {errorGuardar}</div>
+            )}
+          </div>
+
+          {/* COL DERECHA */}
+          <div className="modal-scroll-col" style={{display:'flex',flexDirection:'column' as const,background:'white',borderLeft:'1px solid #f1f5f9',overflowY:'auto',scrollbarWidth:'thin' as const,scrollbarColor:'transparent transparent'}}>
+
+            {/* Presupuesto */}
+            {valor&&(
+              <div style={{padding:'18px 16px',borderBottom:'1px solid #f1f5f9'}}>
+                <div style={labelStyle}>Presupuesto oficial</div>
+                <div style={{fontSize:18,fontWeight:700,color:FC_DARK,letterSpacing:'-0.02em',fontFamily:F,marginTop:5}}>{valor}</div>
+              </div>
+            )}
+
+            {/* Datos clave */}
+            <div style={{padding:'18px 16px',borderBottom:'1px solid #f1f5f9',display:'flex',flexDirection:'column' as const,gap:14}}>
+              <SideItem label="Número del proceso">
+                <span style={{fontFamily:'monospace',fontSize:12}}>{p.codigoProceso||'—'}</span>
+              </SideItem>
+              {modalidadLabel&&<SideItem label="Modalidad">{modalidadLabel}</SideItem>}
+              <SideItem label="Estado">
+                {p.estado
+                  ?<span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:600,color:eb.color,background:eb.bg,padding:'2px 9px',borderRadius:999,fontFamily:F}}><span style={{width:5,height:5,borderRadius:'50%',background:eb.dot}}/>{p.estado}</span>
+                  :'—'}
+              </SideItem>
+              {p.departamento&&<SideItem label="Localización">{p.departamento}</SideItem>}
+            </div>
+
+
+            <div style={{flex:1}}/>
+
+            {/* Acciones */}
+            <div style={{padding:'14px 16px',borderTop:'1px solid #f1f5f9',background:'white',display:'flex',flexDirection:'column' as const,gap:8}}>
+              {(secopLink||p.linkDetalle)&&(
+                <a href={secopLink||p.linkDetalle||''} target="_blank" rel="noopener noreferrer"
+                  style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,height:36,borderRadius:8,border:'1.5px solid #1e5799',background:'white',color:secopLoading?'#94a3b8':'#1e5799',fontSize:12.5,fontWeight:600,textDecoration:'none',fontFamily:F,transition:'all .15s'}}
+                  onMouseOver={e=>{(e.currentTarget as HTMLAnchorElement).style.background='#eff6ff';}}
+                  onMouseOut={e=>{(e.currentTarget as HTMLAnchorElement).style.background='white';}}>
+                  <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13,flexShrink:0}}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  {secopLoading?'Buscando link…':'Abrir en portal'}
+                </a>
+              )}
+              {onGestionar&&(
+                <button onClick={hG} disabled={guardando}
+                  style={{height:36,borderRadius:8,background:guardando?'#6b93c4':'#1e5799',color:'white',border:'none',fontSize:12.5,fontWeight:600,fontFamily:F,cursor:guardando?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6,transition:'all .15s'}}
+                  onMouseOver={e=>{if(!guardando)(e.currentTarget as HTMLButtonElement).style.background='#174a85';}}
+                  onMouseOut={e=>{if(!guardando)(e.currentTarget as HTMLButtonElement).style.background='#1e5799';}}>
+                  <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                  {guardando?'Guardando…':'Gestionar proceso'}
+                </button>
+              )}
+              <button onClick={onClose}
+                style={{height:36,borderRadius:8,border:'1.5px solid #e2e8f0',background:'white',color:'#475569',fontSize:12.5,fontWeight:500,fontFamily:F,cursor:'pointer',transition:'all .15s'}}
+                onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#f8fafc';}}
+                onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';}}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 /* ══════════════════════════════════════════════════════════════
    TARJETA PROCESO
 ══════════════════════════════════════════════════════════════ */
@@ -316,6 +1116,7 @@ function ModuloBusquedaProcesos({onModuleChange,sesion}:{onModuleChange?:(mod:st
   const [syncing,setSyncing]=useState(false);
   const [error,setError]=useState('');
   const [detalle,setDetalle]=useState<LiciProceso|null>(null);
+  const [fichaAbierta,setFichaAbierta]=useState<LiciProceso|null>(null);
 
   const [leidos,setLeidos]=useState<Set<string>>(()=>{
     try{
@@ -338,12 +1139,21 @@ function ModuloBusquedaProcesos({onModuleChange,sesion}:{onModuleChange?:(mod:st
   const [fA,setFA]=useState({
     entidad:'all' as 'all'|'aseocolba'|'tempocolba'|'vigicolba',
     portal:'all' as 'all'|'publico'|'privado',
-    fuente:'all',
+    fuente:'',
     dpto:'',
     codigo:'',
     fechaDesde:'',
-    fechaHasta:''
+    fechaHasta:'',
+    perfil:'',
+    estado:'',
+    modalidad:'',
+    departamento:'',
+    entidadGrupo:'',
+    codigoProceso:'',
   });
+  
+  const fARef = React.useRef(fA);
+  useEffect(()=>{ fARef.current = fA; }, [fA]);
 
   const hayFA =
     fA.entidad!=='all' ||
@@ -389,7 +1199,7 @@ function ModuloBusquedaProcesos({onModuleChange,sesion}:{onModuleChange?:(mod:st
     setPagina(1);
   };
 
-  const POR_PAGINA=30;
+  const POR_PAGINA=6;
   const syncEnCursoRef = React.useRef(false);
   const intervaloSyncRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -412,11 +1222,27 @@ function ModuloBusquedaProcesos({onModuleChange,sesion}:{onModuleChange?:(mod:st
 
   const esLeido=(p:LiciProceso)=>leidos.has(p.codigoProceso||p.linkDetalle||String(p.id));
 
-  const consultar=useCallback(async(pag:number)=>{
+  const consultar=useCallback(async(pag:number, filtrosActuales?:typeof fA)=>{
+    const f = filtrosActuales ?? fARef.current;
     setCargando(true);
     setError('');
     try{
-      const res=await fetch(`/api/procesos?page=${pag}&limit=${POR_PAGINA}`);
+      const params=new URLSearchParams({page:String(pag),limit:String(POR_PAGINA)});
+      const _perfiles = Array.isArray(f.perfiles)&&f.perfiles.length ? f.perfiles : (f.perfil&&f.perfil!==''&&f.perfil!=='all'?[f.perfil]:[]);
+      const _fuentes  = Array.isArray(f.fuentes)&&f.fuentes.length   ? f.fuentes  : (f.fuente&&f.fuente!==''&&f.fuente!=='all'?[f.fuente]:[]);
+      const _estados  = Array.isArray(f.estados)&&f.estados.length   ? f.estados  : (f.estado&&f.estado!==''&&f.estado!=='all'?[f.estado]:[]);
+      const _modals   = Array.isArray(f.modalidades)&&f.modalidades.length ? f.modalidades : (f.modalidad&&f.modalidad!==''&&f.modalidad!=='all'?[f.modalidad]:[]);
+      const _deptos   = Array.isArray(f.departamentos)&&f.departamentos.length ? f.departamentos : (f.departamento&&f.departamento!=='all'?[f.departamento]:(f.dpto&&f.dpto!=='all'?[f.dpto]:[]));
+      if(_perfiles.length) params.set('perfiles',    _perfiles.join(','));
+      if(_fuentes.length)  params.set('fuentes',     _fuentes.join(','));
+      if(_estados.length)  params.set('estados',     _estados.join(','));
+      if(_modals.length)   params.set('modalidades', _modals.join(','));
+      if(_deptos.length)   params.set('dptos',       _deptos.join(','));
+      if(f.codigo)                      params.set('query',f.codigo);
+      if(f.fechaDesde)                  params.set('fechaDesde',f.fechaDesde);
+      if(f.fechaHasta)                  params.set('fechaHasta',f.fechaHasta);
+      if(busqueda.trim())               params.set('query',busqueda.trim());
+      const res=await fetch(`/api/procesos?${params.toString()}`);
       const data:ProcesosApiResponse=await res.json();
 
       if(!res.ok||!data.ok){
@@ -432,6 +1258,7 @@ function ModuloBusquedaProcesos({onModuleChange,sesion}:{onModuleChange?:(mod:st
       setCargando(false);
     }
   },[]);
+
 
   const handleSync = useCallback(async (silencioso = false) => {
   if (syncEnCursoRef.current) return;
@@ -474,6 +1301,13 @@ function ModuloBusquedaProcesos({onModuleChange,sesion}:{onModuleChange?:(mod:st
     }
   }
 }, [consultar]);
+
+useEffect(()=>{
+  fARef.current = fA;
+  consultar(1, fA);
+  setPagina(1);
+// eslint-disable-next-line react-hooks/exhaustive-deps
+},[fA.perfil, fA.fuente, fA.departamento, fA.dpto, fA.estado, fA.modalidad, fA.codigo, fA.fechaDesde, fA.fechaHasta]);
 
   useEffect(() => {
     consultar(1);
@@ -532,84 +1366,22 @@ function ModuloBusquedaProcesos({onModuleChange,sesion}:{onModuleChange?:(mod:st
     const data=await res.json();
     if(!res.ok||!data.ok) throw new Error(data.error??'No se pudo crear la solicitud');
 
-    setDetalle(null);
+    setFichaAbierta(null);
     onModuleChange?.('solicitudesComercial');
   };
 
   const filtrados=useMemo(()=>{
     if(!resultado?.procesos) return [];
-
-    let l=resultado.procesos;
-
-    if(fA.entidad!=='all'){
-      l=l.filter(p=>(p.perfil||'').toLowerCase()===fA.entidad.toLowerCase());
-    }
-
-    if(fA.portal!=='all'){
-      l=l.filter(p=>{
-        const f=(p.fuente||p.aliasFuente||'').toLowerCase();
-        return fA.portal==='publico' ? f.includes('secop') : !f.includes('secop');
-      });
-    }
-
-    if(fA.fuente!=='all'){
-      l=l.filter(p=>{
-        const f=(p.fuente||p.aliasFuente||'').toLowerCase();
-        if(fA.fuente==='secop i') return f.includes('secop i')&&!f.includes('secop ii');
-        if(fA.fuente==='secop ii') return f.includes('secop ii');
-        if(fA.fuente==='otro') return !f.includes('secop');
-        return true;
-      });
-    }
-
-    if(fA.dpto.trim()){
-      const d=fA.dpto.toLowerCase();
-      l=l.filter(p=>(p.departamento||'').toLowerCase().includes(d));
-    }
-
-    if(fA.codigo.trim()){
-      const c=fA.codigo.toLowerCase();
-      l=l.filter(p=>
-        (p.codigoProceso||'').toLowerCase().includes(c) ||
-        (p.entidad||'').toLowerCase().includes(c) ||
-        (p.objeto||'').toLowerCase().includes(c)
-      );
-    }
-
-    if(fA.fechaDesde){
-      const desde=new Date(fA.fechaDesde);
-      l=l.filter(p=>{
-        if(!p.fechaPublicacion) return false;
-        return new Date(p.fechaPublicacion.replace(' ','T'))>=desde;
-      });
-    }
-
-    if(fA.fechaHasta){
-      const hasta=new Date(fA.fechaHasta);
-      hasta.setHours(23,59,59);
-      l=l.filter(p=>{
-        if(!p.fechaPublicacion) return false;
-        return new Date(p.fechaPublicacion.replace(' ','T'))<=hasta;
-      });
-    }
-
-    if(busqueda.trim()){
-      const q=busqueda.toLowerCase();
-      l=l.filter(p=>
-        [p.entidad,p.nombre,p.objeto,p.codigoProceso,p.departamento,p.estado,p.fuente,p.perfil]
-          .some(v=>(v||'').toLowerCase().includes(q))
-      );
-    }
-
-    return l;
-  },[resultado,fA,busqueda]);
+    return resultado.procesos;
+  },[resultado]);
+  
 
   const totalApi=resultado?.total_resultados_api??0;
   const totalPages=Math.max(1,Math.ceil(totalApi/POR_PAGINA));
 
   const handlePagina=(p:number)=>{
     setPagina(p);
-    consultar(p);
+    consultar(p, fA);
   };
 
   const handleRefresh=()=>{
@@ -674,253 +1446,110 @@ function ModuloBusquedaProcesos({onModuleChange,sesion}:{onModuleChange?:(mod:st
     marginBottom:5
   };
 
-  return(
-    <>
-      {detalle&&<ModalDetalleProceso p={detalle} onClose={()=>setDetalle(null)} onGestionar={()=>handleGestionar(detalle)}/>}
+if(fichaAbierta){
+    const sol:Solicitud={
+      id:0,
+      procesoId:(fichaAbierta as any)._dbId??fichaAbierta.id??null,
+      procesoSourceKey:'',
+      codigoProceso:fichaAbierta.codigoProceso??'',
+      nombreProceso:fichaAbierta.nombre??'',
+      entidad:fichaAbierta.entidad??'',
+      objeto:fichaAbierta.objeto??'',
+      fuente:fichaAbierta.fuente??'',
+      aliasFuente:fichaAbierta.aliasFuente??'',
+      modalidad:fichaAbierta.modalidad??'',
+      perfil:fichaAbierta.perfil??'',
+      departamento:fichaAbierta.departamento??'',
+      estadoFuente:fichaAbierta.estado??'',
+      fechaPublicacion:fichaAbierta.fechaPublicacion??null,
+      fechaVencimiento:fichaAbierta.fechaVencimiento??null,
+      valor:fichaAbierta.valor??null,
+      linkDetalle:fichaAbierta.linkDetalle??'',
+      linkSecop:fichaAbierta.linkSecop??'',
+      linkSecopReg:fichaAbierta.linkSecopReg??'',
+      estadoSolicitud:'Selección de proceso',
+      observacion:null,
+      ciudad:fichaAbierta.departamento??'',
+      sede:'',plataforma:'',fechaCierre:null,procStep:0,
+      procData:(fichaAbierta.cronogramas??[]).reduce((acc:{[k:string]:{fechaI:string;fechaF:string;obs:string}},cr,i)=>({...acc,[`step_${i}`]:{fechaI:cr.fecha??'',fechaF:cr.fecha??'',obs:cr.nombre??`Etapa ${i+1}`}}),{}),
+      obsData:[],
+      docData:fichaAbierta.documentos??[],
+      asignaciones:[],
+      revisor:'',aprobador:'',
+      usuarioRegistro:sesion?.usuario??'',
+      emailRegistro:sesion?.email??'',
+      cargoRegistro:sesion?.cargo??'',
+      entidadRegistro:sesion?.entidadGrupo??'',
+      sqrNumero:null,sqrCreada:false,sqrCerrada:false,sqrError:null,
+      fechaAperturaSqr:null,fechaCierreSqr:null,
+      resultadoFinal:null,causalCierre:null,
+      createdAt:new Date().toISOString(),
+      updatedAt:new Date().toISOString(),
+    };
+    return(
+      <VistFichaBusqueda
+        sol={sol}
+        sesion={sesion!}
+        onVolver={()=>setFichaAbierta(null)}
+        onGestionar={async()=>{handleGestionar(fichaAbierta);setFichaAbierta(null);onModuleChange?.('solicitudesComercial');}}
+      />
+    );
+  }
 
-      {pF&&(
-        <div style={{position:'fixed',inset:0,zIndex:900}} onClick={()=>setPF(false)}>
-          <div
-            onClick={e=>e.stopPropagation()}
-            style={{
-              position:'fixed',
-              top:52,
-              right:12,
-              width:304,
-              maxHeight:'calc(100vh - 70px)',
-              background:'white',
-              borderRadius:12,
-              boxShadow:'0 8px 32px rgba(0,0,0,.18)',
-              border:'1px solid #e2e8f0',
-              display:'flex',
-              flexDirection:'column',
-              zIndex:901,
-              overflow:'hidden'
-            }}
-          >
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px 12px',borderBottom:'1px solid #f1f5f9',flexShrink:0}}>
-              <span style={{fontSize:13.5,fontWeight:700,color:'#0f172a'}}>Filtrar procesos</span>
-              <button onClick={()=>setPF(false)} style={{background:'none',border:'none',cursor:'pointer',color:'#94a3b8',fontSize:20,lineHeight:1,padding:'0 2px'}}>×</button>
-            </div>
-
-            <div style={{overflowY:'auto',flex:1,padding:'14px 16px'}}>
-              <div style={{marginBottom:13}}>
-                <label style={lEl}>Entidad del grupo</label>
-                <select value={fEnt} onChange={e=>setFEnt(e.target.value as typeof fEnt)} style={sEl}>
-                  <option value="all">Todas</option>
-                  <option value="aseocolba">Aseocolba</option>
-                  <option value="tempocolba">Tempocolba</option>
-                  <option value="vigicolba">Vigicolba</option>
-                </select>
-              </div>
-
-              <div style={{marginBottom:13}}>
-                <label style={lEl}>Tipo de proceso</label>
-                <select value={fPor} onChange={e=>setFPor(e.target.value as typeof fPor)} style={sEl}>
-                  <option value="all">Todos</option>
-                  <option value="publico">Público</option>
-                  <option value="privado">Privado</option>
-                </select>
-              </div>
-
-              <div style={{marginBottom:13}}>
-                <label style={lEl}>Portal / Fuente</label>
-                <select value={fFuente} onChange={e=>setFFuente(e.target.value)} style={sEl}>
-                  <option value="all">Todos</option>
-                  <option value="secop i">SECOP I</option>
-                  <option value="secop ii">SECOP II</option>
-                  <option value="otro">Otro</option>
-                </select>
-              </div>
-
-              <div style={{marginBottom:13}}>
-                <label style={lEl}>Departamento</label>
-                <select value={fDpto} onChange={e=>setFDpto(e.target.value)} style={sEl}>
-                  <option value="">Todos</option>
-                  {dptosSug.map(d=><option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-
-              <div style={{marginBottom:13}}>
-                <label style={lEl}>No. proceso / Entidad / Objeto</label>
-                <input type="text" value={fCod} onChange={e=>setFCod(e.target.value)} placeholder="Ej. MC-007-2026…" style={iEl}/>
-              </div>
-
-              <div style={{marginBottom:13}}>
-                <label style={lEl}>Fecha publicación — desde</label>
-                <input type="date" value={fFD} onChange={e=>setFFD(e.target.value)} style={iEl}/>
-              </div>
-
-              <div style={{marginBottom:4}}>
-                <label style={lEl}>Fecha publicación — hasta</label>
-                <input type="date" value={fFH} onChange={e=>setFFH(e.target.value)} style={iEl}/>
-              </div>
-            </div>
-
-            <div style={{padding:'12px 16px',borderTop:'1px solid #f1f5f9',display:'flex',gap:8,flexShrink:0}}>
-              <button onClick={aplicar} style={{flex:1,height:36,borderRadius:8,background:'#1E5799',color:'white',border:'none',fontSize:13,fontWeight:700,fontFamily:'var(--font)',cursor:'pointer'}}>Aplicar</button>
-              <button onClick={limpiar} style={{height:36,padding:'0 16px',borderRadius:8,background:'white',color:'#64748b',border:'1px solid #e2e8f0',fontSize:13,fontFamily:'var(--font)',cursor:'pointer'}}>Limpiar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="content">
-        <div className="page-header">
-          <div className="page-title">
-            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:16,height:16}}>
-              <circle cx="11" cy="11" r="8"/>
-              <path d="M21 21l-4.35-4.35"/>
-            </svg>
-            <span>Búsqueda de procesos</span>
-          </div>
-
-          <div className="page-actions">
-            <input
-              type="text"
-              className="search-box"
-              placeholder="Buscar en resultados…"
-              value={busqueda}
-              onChange={e=>setBusqueda(e.target.value)}
-              disabled={cargando}
-            />
-
-            <button
-              className={`icon-btn${hayFA?' active':''}`}
-              title="Filtrar"
-              onClick={()=>{
-                setFEnt(fA.entidad);
-                setFPor(fA.portal);
-                setFDpto(fA.dpto);
-                setFCod(fA.codigo);
-                setFFD(fA.fechaDesde);
-                setFFH(fA.fechaHasta);
-                setFFuente(fA.fuente);
-                setPF(v=>!v);
-              }}
-              style={{position:'relative'}}
-            >
-              <IcoFilter/>
-              {hayFA&&<span style={{position:'absolute',top:2,right:2,width:7,height:7,borderRadius:'50%',background:'#ef4444',border:'1.5px solid white'}}/>}
-            </button>
-
-            <button className="icon-btn" title="Recargar" onClick={handleRefresh} disabled={cargando||syncing}>
-              <IcoRefresh/>
-            </button>
-
-            <button
-              className="icon-btn"
-              title="Sincronizar"
-              onClick={()=>handleSync(false)}
-              disabled={syncing||cargando}
-              style={{position:'relative',borderColor:syncing?'#1E5799':undefined,color:syncing?'#1E5799':undefined}}
-            >
-              <IcoSync/>
-              {syncing&&<span style={{position:'absolute',top:-3,right:-3,width:8,height:8,borderRadius:'50%',background:'#1E5799',border:'1.5px solid white'}}/>}
-            </button>
-          </div>
-        </div>
-
-        {badgesFiltros.length>0&&(
-          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
-            {badgesFiltros.map((b,i)=>
-              <span key={i} style={{display:'inline-flex',alignItems:'center',gap:5,height:24,padding:'0 10px',borderRadius:20,background:'#EAF2FB',color:'#1E5799',fontSize:11,fontWeight:600}}>
-                {b.label}
-                <button onClick={b.clear} style={{background:'none',border:'none',cursor:'pointer',color:'#2E7BC4',fontSize:13,lineHeight:1,padding:0,display:'flex',alignItems:'center'}}>×</button>
-              </span>
-            )}
-            <button onClick={limpiar} style={{height:24,padding:'0 10px',borderRadius:20,background:'#fee2e2',color:'#dc2626',fontSize:11,fontWeight:600,border:'none',cursor:'pointer',fontFamily:'var(--font)'}}>
-              Limpiar todos
-            </button>
-          </div>
-        )}
-
-        {syncing&&(
-          <div style={{background:'#EAF2FB',border:'1px solid #D0E4F3',borderRadius:8,padding:'10px 14px',color:'#1E5799',fontSize:12,marginBottom:12}}>
-            🔄 Sincronizando procesos…
-          </div>
-        )}
-
-        {error&&(
-          <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 14px',color:'#dc2626',fontSize:12,marginBottom:12}}>
-            ⚠️ {error}
-          </div>
-        )}
-
-        {cargando&&!syncing&&<div className="module-status">Cargando procesos…</div>}
-
-        {!cargando&&resultado&&(
-          <>
-            {filtrados.length===0 ? (
-              <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:12,padding:'40px 20px',textAlign:'center',color:'#94a3b8',fontSize:13}}>
-                {totalApi===0 ? (
-                  <>
-                    <p style={{margin:'0 0 12px'}}>No hay procesos en la base local.</p>
-                    <button
-                      onClick={()=>handleSync(false)}
-                      disabled={syncing}
-                      style={{height:36,padding:'0 20px',borderRadius:8,background:'#1E5799',color:'white',border:'none',fontSize:13,fontWeight:600,fontFamily:'var(--font)',cursor:'pointer'}}
-                    >
-                      Sincronizar ahora
-                    </button>
-                  </>
-                ) : busqueda ? `Sin resultados para "${busqueda}".` : 'Sin resultados.'}
-              </div>
-            ) : (
-              <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                {filtrados.map((p,i)=>
-                  <TarjetaProceso
-                    key={`${p.codigoProceso||p.linkDetalle||p.objeto}-${i}`}
-                    p={p}
-                    leido={esLeido(p)}
-                    onDetalle={()=>abrirDetalle(p)}
-                  />
-                )}
-              </div>
-            )}
-
-            <div className="pagination-bar" style={{marginTop:16}}>
-              <span>
-                {totalApi>0
-                  ? `${(pagina-1)*POR_PAGINA+1} – ${Math.min(pagina*POR_PAGINA,totalApi)} de ${totalApi.toLocaleString('es-CO')}`
-                  : '0 resultados'}
-              </span>
-
-              <div className="pages">
-                <button className="page-btn" onClick={()=>handlePagina(pagina-1)} disabled={pagina<=1||cargando}>‹</button>
-
-                {(()=>{
-                  const total=totalPages;
-                  let pages:(number|-1)[]=[];
-
-                  if(total<=7){
-                    pages=Array.from({length:total},(_,i)=>i+1);
-                  }else{
-                    pages=[1];
-                    if(pagina>3) pages.push(-1);
-                    for(let i=Math.max(2,pagina-1);i<=Math.min(total-1,pagina+1);i++) pages.push(i);
-                    if(pagina<total-2) pages.push(-1);
-                    pages.push(total);
-                  }
-
-                  return pages.map((n,i)=>
-                    n===-1
-                      ? <span key={`el${i}`} style={{padding:'0 3px',color:'#9ca3af',fontSize:12}}>…</span>
-                      : <button key={n} className={`page-btn${n===pagina?' active':''}`} onClick={()=>n!==pagina&&handlePagina(n)} disabled={cargando}>{n}</button>
-                  );
-                })()}
-
-                <button className="page-btn" onClick={()=>handlePagina(pagina+1)} disabled={pagina>=totalPages||cargando}>›</button>
-              </div>
-            </div>
-          </>
-        )}
+return (
+  <>
+    {syncing && (
+      <div
+        style={{
+          background: '#EAF2FB',
+          border: '1px solid #D0E4F3',
+          borderRadius: 8,
+          padding: '10px 14px',
+          color: '#1E5799',
+          fontSize: 12,
+          margin: '12px 26px 0',
+        }}
+      >
+        🔄 Sincronizando procesos…
       </div>
-    </>
-  );
+    )}
+
+    <ProcesosCardsView
+      procesos={filtrados}
+      loading={cargando && !syncing}
+      error={error || null}
+      page={pagina}
+      limit={POR_PAGINA}
+      total={totalApi}
+      totalPages={totalPages}
+      filtros={fA}
+      setFiltros={setFA}
+      onBuscar={(nuevosFiltros?: typeof fA) => {
+        setPagina(1);
+        setDetalle(null);
+        if(nuevosFiltros){
+          fARef.current = nuevosFiltros;
+          consultar(1, nuevosFiltros);
+        } else {
+          consultar(1, fA);
+        }
+      }}
+      onCambiarPagina={(p) => {
+        handlePagina(p);
+      }}
+      onCambiarLimit={() => {
+        setPagina(1);
+        consultar(1);
+      }}
+      onGestionarProceso={(proceso) => {
+        setFichaAbierta(proceso as LiciProceso);
+      }}
+    />
+  </>
+);
 }
 
-const ModuloBusquedaFinal=ModuloBusquedaProcesos;
+const ModuloBusquedaFinal = ModuloBusquedaProcesos;
 
 /* ══════════════════════════════════════════════════════════════
    MODAL DETALLES DEL PROCESO (desde solicitud)
@@ -928,6 +1557,7 @@ const ModuloBusquedaFinal=ModuloBusquedaProcesos;
    Solo lectura — similar al modal de Búsqueda de procesos.
 ══════════════════════════════════════════════════════════════ */
 function ModalDetallesProceso({sol,onClose}:{sol:Solicitud;onClose:()=>void}){
+  const [docVista,setDocVista]=React.useState<'grid'|'list'>('list');
   const fmtFecha=(r:string|null)=>{if(!r)return null;const d=new Date(r.replace(' ','T'));if(Number.isNaN(d.getTime()))return r;return d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'})+' · '+d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});};
   const fmtV=(v:number|null)=>{if(v==null||Number.isNaN(v)||v===0)return null;return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(v);};
 
@@ -937,391 +1567,571 @@ function ModalDetallesProceso({sol,onClose}:{sol:Solicitud;onClose:()=>void}){
   const modalidadLabel=MMAP_MODALIDAD[sol.modalidad]??sol.modalidad??'—';
   const valor=fmtV(sol.valor);
 
-  const docArr=Array.isArray(sol.docData)
-    ?sol.docData as Array<{nombre?:string;url?:string;ruta?:string;[k:string]:unknown}>
-    :[];
+  const docArr=Array.isArray(sol.docData)?sol.docData as Array<{nombre?:string;url?:string;ruta?:string;[k:string]:unknown}>:[];
   const procDataEntries=Object.entries(sol.procData||{}).filter(([,v])=>v?.fechaI);
-  const obsArr=Array.isArray(sol.obsData)
-    ?sol.obsData as Array<{texto?:string;autor?:string;fecha?:string;[k:string]:unknown}>
-    :[];
-  const asigArr=Array.isArray(sol.asignaciones)
-    ?sol.asignaciones as Array<{nombre?:string;cargo?:string;rol?:string;[k:string]:unknown}>
-    :[];
-
+  const obsArr=Array.isArray(sol.obsData)?sol.obsData as Array<{texto?:string;autor?:string;fecha?:string;[k:string]:unknown}>:[];
+  const asigArr=Array.isArray(sol.asignaciones)?sol.asignaciones as Array<{nombre?:string;cargo?:string;rol?:string;[k:string]:unknown}>:[];
   const fuentes:Array<{label:string;url:string}>=[];
   if(sol.linkSecop)fuentes.push({label:portal.short,url:sol.linkSecop});
   if(sol.linkSecopReg&&sol.linkSecopReg!==sol.linkSecop)fuentes.push({label:'Reg.',url:sol.linkSecopReg});
   if(sol.linkDetalle&&sol.linkDetalle!==sol.linkSecop)fuentes.push({label:'Detalle',url:sol.linkDetalle});
 
-  const extInfo=(url:string)=>{const s=(url||'').toLowerCase();if(s.includes('.xlsx')||s.includes('.xls'))return{bg:'#E8F5E9',color:'#1B5E20',border:'#A5D6A7',label:'XLS'};if(s.includes('.docx')||s.includes('.doc'))return{bg:'#E3F2FD',color:'#0D47A1',border:'#90CAF9',label:'DOC'};if(s.includes('.zip')||s.includes('.rar'))return{bg:'#F3E5F5',color:'#4A148C',border:'#CE93D8',label:'ZIP'};return{bg:'#FFEBEE',color:'#B71C1C',border:'#EF9A9A',label:'PDF'};};
+  const F='var(--font)';
+  const FS=13;
+  const FC='#334155';
+  const FC_LABEL='#94a3b8';
+  const FC_DARK='#0f172a';
 
-  const sT:React.CSSProperties={fontSize:11,fontWeight:700,color:'#1E5799',textTransform:'uppercase',letterSpacing:'0.07em',paddingBottom:10,marginBottom:10,borderBottom:'1px solid #f1f5f9'};
-  const rB:React.CSSProperties={display:'flex',justifyContent:'space-between',alignItems:'baseline',padding:'8px 0',borderBottom:'1px solid #f8fafc',fontSize:12.5};
+  const baseText:React.CSSProperties={fontSize:FS,color:FC,fontFamily:F,lineHeight:1.5};
+  const labelStyle:React.CSSProperties={fontSize:9,fontWeight:700,color:FC_LABEL,letterSpacing:'0.1em',textTransform:'uppercase' as const,fontFamily:F,marginBottom:4};
+  const secTitle:React.CSSProperties={fontSize:12,fontWeight:700,color:FC_DARK,fontFamily:F,letterSpacing:'-0.01em',marginBottom:12,paddingBottom:8,borderBottom:'1px solid #f1f5f9'};
 
+  const Dato=({label,children}:{label:string;children:React.ReactNode})=>(
+    <div style={{paddingBottom:12,borderBottom:'1px solid #f1f5f9'}}>
+      <div style={labelStyle}>{label}</div>
+      <div style={baseText}>{children}</div>
+    </div>
+  );
+
+  const SideItem=({label,children}:{label:string;children:React.ReactNode})=>(
+    <div>
+      <div style={labelStyle}>{label}</div>
+      <div style={{...baseText,fontSize:13,color:'#0f172a',fontWeight:500}}>{children}</div>
+    </div>
+  );
+
+  React.useEffect(()=>{
+  const cols = document.querySelectorAll('.modal-scroll-col');
+  cols.forEach(col=>{
+    col.addEventListener('mouseenter',()=>{
+      (col as HTMLElement).style.scrollbarColor='#94a3b8 transparent';
+    });
+    col.addEventListener('mouseleave',()=>{
+      (col as HTMLElement).style.scrollbarColor='transparent transparent';
+    });
+  });
+},[]);
+  
   return(
-    <div className="modal-overlay" style={{zIndex:1050}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div style={{background:'white',borderRadius:12,width:'94vw',maxWidth:860,maxHeight:'92vh',display:'flex',flexDirection:'column',boxShadow:'0 20px 60px rgba(15,32,64,.22)',overflow:'hidden',border:'1px solid #e2e8f0'}}>
+    <div className="modal-overlay" style={{zIndex:1200}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{background:'white',borderRadius:16,width:'96vw',maxWidth:980,maxHeight:'92vh',display:'flex',flexDirection:'column' as const,boxShadow:'0 24px 64px rgba(15,23,42,0.18)',overflow:'hidden',border:'1px solid #e2e8f0'}}>
 
         {/* HEADER */}
-        <div style={{background:'white',borderBottom:'1px solid #f1f5f9',padding:'18px 24px',flexShrink:0}}>
-          <div style={{display:'flex',alignItems:'flex-start',gap:14}}>
-            <div style={{width:42,height:42,borderRadius:'50%',background:portal.bg,color:portal.color,fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{portal.short}</div>
+        <div style={{background:'white',borderBottom:'1px solid #f1f5f9',padding:'16px 24px',flexShrink:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:14}}>
+            <div style={{width:42,height:42,borderRadius:10,background:'#1e5799',color:'white',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,letterSpacing:'0.04em',fontFamily:F}}>{portal.short}</div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:15,fontWeight:600,color:'#0f172a',marginBottom:6,lineHeight:1.3}}>{sol.entidad||'Detalle del proceso'}</div>
-              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                {sol.codigoProceso&&<span style={{fontSize:11,color:'#64748b',background:'#f1f5f9',padding:'2px 8px',borderRadius:4}}>{sol.codigoProceso}</span>}
-                {sol.estadoFuente&&<span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,color:eb.color,background:eb.bg,padding:'3px 10px',borderRadius:20}}><span style={{width:5,height:5,borderRadius:'50%',background:eb.dot,flexShrink:0}}/>{sol.estadoFuente}</span>}
-                {pc&&<span style={{fontSize:11,color:pc.color,background:pc.bg,padding:'3px 10px',borderRadius:20,fontWeight:600}}>{pc.label}</span>}
-                <span style={{fontSize:10,color:'#94a3b8',background:'#f8fafc',padding:'2px 8px',borderRadius:4,border:'1px solid #e2e8f0'}}>Solo lectura</span>
+              <div style={{fontSize:15,fontWeight:700,color:FC_DARK,letterSpacing:'-0.02em',lineHeight:1.25,marginBottom:5,fontFamily:F}}>{sol.entidad||'Detalle del proceso'}</div>
+              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap' as const}}>
+                {sol.codigoProceso&&<span style={{fontSize:11,color:'#64748b',background:'#f8fafc',border:'1px solid #e8edf2',padding:'2px 9px',borderRadius:5,fontFamily:'monospace'}}>{sol.codigoProceso}</span>}
+                {pc&&<span style={{fontSize:11,color:pc.color,background:pc.bg,padding:'2px 9px',borderRadius:999,fontWeight:600,fontFamily:F}}>{pc.label}</span>}
               </div>
             </div>
-            <button onClick={onClose} style={{width:28,height:28,borderRadius:'50%',border:'1px solid #e2e8f0',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#94a3b8',flexShrink:0}}
-              onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#fef2f2';(e.currentTarget as HTMLButtonElement).style.color='#ef4444';}}
-              onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';(e.currentTarget as HTMLButtonElement).style.color='#94a3b8';}}>
-              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M18 6L6 18M6 6l12 12"/></svg>
+            <button onClick={onClose} style={{width:30,height:30,borderRadius:8,border:'1.5px solid #e2e8f0',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#94a3b8',flexShrink:0,transition:'all .15s'}}
+              onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#fef2f2';(e.currentTarget as HTMLButtonElement).style.color='#ef4444';(e.currentTarget as HTMLButtonElement).style.borderColor='#fca5a5';}}
+              onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';(e.currentTarget as HTMLButtonElement).style.color='#94a3b8';(e.currentTarget as HTMLButtonElement).style.borderColor='#e2e8f0';}}>
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
           </div>
         </div>
 
-        {/* CUERPO */}
-        <div style={{overflowY:'auto',flex:1,padding:'16px 24px 20px',display:'flex',flexDirection:'column',gap:12}}>
+        {/* BODY: 2 columnas */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 280px',flex:1,minHeight:0,overflow:'hidden'}}>
 
-          {/* Objeto */}
-          {sol.objeto&&(
-            <div style={{background:'#FAFCFF',border:'1px solid #D0E4F3',borderRadius:8,padding:'12px 16px'}}>
-              <div style={{fontSize:10,fontWeight:700,color:'#1E5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',marginBottom:6}}>Objeto del proceso</div>
-              <p style={{margin:0,fontSize:13,color:'#1e293b',lineHeight:1.65}}>{sol.objeto}</p>
-            </div>
-          )}
+          {/* ── COL IZQUIERDA ── */}
+          <div className="modal-scroll-col" style={{overflowY:'auto',padding:'20px 24px',display:'flex',flexDirection:'column' as const,gap:22,scrollbarWidth:'thin' as const,scrollbarColor:'transparent transparent'}}>
 
-          {/* Info general */}
-          <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px'}}>
-            <div style={sT}>Información general</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',columnGap:32}}>
-              {[
-                {label:'Entidad',value:<strong style={{fontWeight:600}}>{sol.entidad||'—'}</strong>},
-                {label:'Número del proceso',value:<span style={{fontFamily:'monospace'}}>{sol.codigoProceso||'—'}</span>},
-                {label:'Modalidad',value:modalidadLabel},
-                {label:'Fuente / portal',value:portal.label},
-                {label:'Estado fuente',value:sol.estadoFuente?<span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11,fontWeight:600,color:eb.color,background:eb.bg,padding:'2px 10px',borderRadius:20}}><span style={{width:5,height:5,borderRadius:'50%',background:eb.dot}}/>{sol.estadoFuente}</span>:'—'},
-                ...(sol.departamento?[{label:'Localización',value:sol.departamento}]:[]),
-                ...(valor?[{label:'Presupuesto oficial',value:<span style={{fontWeight:700,color:'#15803d'}}>{valor}</span>}]:[]),
-                ...(pc?[{label:'Perfil de negocio',value:<span style={{color:pc.color,fontWeight:600}}>{pc.label}</span>}]:[]),
-                ...(sol.plataforma?[{label:'Plataforma',value:sol.plataforma}]:[]),
-                ...(sol.ciudad?[{label:'Ciudad',value:sol.ciudad}]:[]),
-              ].map((item,i)=>(
-                <div key={i} style={{padding:'9px 0',borderBottom:'1px solid #f8fafc'}}>
-                  <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase' as const,letterSpacing:'0.06em',marginBottom:3}}>{item.label}</div>
-                  <div style={{fontSize:12.5,color:'#1e293b'}}>{item.value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Cronograma / fechas */}
-          <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px'}}>
-            <div style={sT}>Cronograma de fechas</div>
-            {sol.fechaPublicacion&&(
-              <div style={rB}>
-                <span style={{color:'#64748b',flex:1,paddingRight:16}}>Fecha de publicación</span>
-                <span style={{color:'#1e293b',whiteSpace:'nowrap'}}>{fmtFecha(sol.fechaPublicacion)}</span>
+            {/* 1. Objeto */}
+            {sol.objeto&&(
+              <div>
+                <div style={secTitle}>Objeto del proceso</div>
+                <p style={{margin:0,...baseText,lineHeight:1.7}}>
+                  {sol.objeto.charAt(0).toUpperCase()+sol.objeto.slice(1).toLowerCase()}
+                </p>
               </div>
             )}
-            {sol.fechaVencimiento&&(
-              <div style={{...rB,borderBottom:procDataEntries.length>0?'1px solid #f8fafc':'none'}}>
-                <span style={{color:'#64748b',flex:1,paddingRight:16}}>Fecha de vencimiento</span>
-                <span style={{color:'#dc2626',fontWeight:600,whiteSpace:'nowrap'}}>{fmtFecha(sol.fechaVencimiento)}</span>
-              </div>
-            )}
-            {procDataEntries.map(([k,v],i)=>{
-              const idx=Number(k.replace('step_',''));
-              const flujo=getFlujo(sol.modalidad,sol.fuente);
-              const paso=flujo[idx];
-              return(
-                <div key={k} style={{...rB,borderBottom:i<procDataEntries.length-1?'1px solid #f8fafc':'none'}}>
-                  <span style={{color:'#64748b',flex:1,paddingRight:16}}>{v.obs||paso?.label?.replace('\n',' ')||`Etapa ${idx+1}`}</span>
-                  <span style={{color:'#1e293b',whiteSpace:'nowrap'}}>{v.fechaI}{v.fechaF&&v.fechaF!==v.fechaI?` → ${v.fechaF}`:''}</span>
-                </div>
-              );
-            })}
-            {!sol.fechaPublicacion&&!sol.fechaVencimiento&&procDataEntries.length===0&&(
-              <p style={{fontSize:12,color:'#94a3b8',margin:0}}>Sin fechas registradas.</p>
-            )}
-          </div>
 
-          {/* Fuentes / Links */}
-          {fuentes.length>0&&(
-            <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px'}}>
-              <div style={sT}>Fuentes y enlaces</div>
-              {fuentes.map((f,i)=>(
-                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:i>0?'8px 0 0':'2px 0 0'}}>
-                  <span style={{fontSize:11,fontWeight:600,color:'#475569',flexShrink:0,minWidth:64}}>{f.label}</span>
-                  <a href={f.url} target="_blank" rel="noopener noreferrer" style={{fontSize:11.5,color:'#1E5799',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.url}</a>
-                  <CopiarLinkBtn url={f.url}/>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Documentación */}
-          <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px'}}>
-            <div style={sT}>Documentación</div>
-            {docArr.length===0
-              ?<p style={{fontSize:12,color:'#94a3b8',margin:0}}>Sin documentos registrados.</p>
-              :docArr.map((d,i)=>{
-                const url=d.ruta||d.url||'';
-                const ext=extInfo(url);
-                return(
-                  <div key={i} style={{display:'flex',alignItems:'center',gap:12,background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 14px',marginBottom:i<docArr.length-1?6:0}}
-                    onMouseOver={e=>{(e.currentTarget as HTMLDivElement).style.borderColor='#A8CCEC';(e.currentTarget as HTMLDivElement).style.background='#FAFCFF';}}
-                    onMouseOut={e=>{(e.currentTarget as HTMLDivElement).style.borderColor='#e2e8f0';(e.currentTarget as HTMLDivElement).style.background='white';}}>
-                    <div style={{width:40,height:40,borderRadius:8,flexShrink:0,background:ext.bg,border:`1px solid ${ext.border}`,color:ext.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:800}}>{ext.label}</div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:12.5,fontWeight:600,color:'#1e293b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.nombre||`Documento ${i+1}`}</div>
-                      {url&&<div style={{fontSize:10.5,color:'#94a3b8',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{url}</div>}
+            {/* 2. Cronograma */}
+            {(sol.fechaPublicacion||sol.fechaVencimiento||procDataEntries.length>0)&&(
+              <div>
+                <div style={secTitle}>Cronograma de fechas</div>
+                <div style={{display:'flex',flexDirection:'column' as const}}>
+                  {sol.fechaPublicacion&&(
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #f8fafc'}}>
+                      <span style={{...baseText,color:'#64748b'}}>Fecha de publicación</span>
+                      <span style={baseText}>{fmtFecha(sol.fechaPublicacion)}</span>
                     </div>
-                    {url
-                      ?<a href={url} target="_blank" rel="noopener noreferrer" style={{flexShrink:0,display:'inline-flex',alignItems:'center',gap:5,height:30,padding:'0 14px',borderRadius:6,background:'#1E5799',color:'white',fontSize:11.5,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap'}}>
-                        <svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:12,height:12}}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Descargar
-                      </a>
-                      :<span style={{fontSize:11,color:'#94a3b8',flexShrink:0}}>Sin enlace</span>
-                    }
-                  </div>
-                );
-              })
-            }
-          </div>
-
-          {/* Observaciones */}
-          {obsArr.length>0&&(
-            <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px'}}>
-              <div style={sT}>Observaciones</div>
-              {obsArr.map((ob,i)=>(
-                <div key={i} style={{background:'#FAFCFF',border:'1px solid #D0E4F3',borderRadius:8,padding:'8px 12px',marginBottom:i<obsArr.length-1?6:0}}>
-                  {ob.autor&&<div style={{fontSize:10.5,fontWeight:700,color:'#1a5ea8',marginBottom:3}}>{String(ob.autor)}{ob.fecha?` · ${String(ob.fecha)}`:''}</div>}
-                  <div style={{fontSize:12,color:'#374151',lineHeight:1.5}}>{String(ob.texto||JSON.stringify(ob))}</div>
+                  )}
+                  {sol.fechaVencimiento&&(
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:procDataEntries.length>0?'1px solid #f8fafc':'none'}}>
+                      <span style={{...baseText,color:'#64748b'}}>Fecha de vencimiento</span>
+                      <span style={baseText}>{fmtFecha(sol.fechaVencimiento)}</span>
+                    </div>
+                  )}
+                  {procDataEntries.map(([k,v],i)=>{
+                    const idx=Number(k.replace('step_',''));
+                    const flujo=getFlujo(sol.modalidad,sol.fuente);
+                    const paso=flujo[idx];
+                    return(
+                      <div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:i<procDataEntries.length-1?'1px solid #f8fafc':'none'}}>
+                        <span style={{...baseText,color:'#64748b',flex:1,paddingRight:16}}>{v.obs||paso?.label?.replace('\n',' ')||`Etapa ${idx+1}`}</span>
+                        <span style={{...baseText,whiteSpace:'nowrap' as const}}>{v.fechaI}{v.fechaF&&v.fechaF!==v.fechaI?` → ${v.fechaF}`:''}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* Asignaciones */}
-          {asigArr.length>0&&(
-            <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px'}}>
-              <div style={sT}>Asignaciones</div>
-              {asigArr.map((a,i)=>(
-                <div key={i} style={{display:'flex',alignItems:'center',gap:8,background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:6,padding:'7px 10px',marginBottom:i<asigArr.length-1?5:0}}>
-                  <div style={{width:26,height:26,borderRadius:'50%',background:'#1a5ea8',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                    <svg fill="none" stroke="white" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"/></svg>
-                  </div>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:600,color:'#1e293b'}}>{String(a.nombre||`Asignado ${i+1}`)}</div>
-                    {(a.cargo||a.rol)&&<div style={{fontSize:10.5,color:'#64748b'}}>{String(a.cargo||a.rol||'')}</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* FOOTER */}
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 24px',borderTop:'1px solid #e2e8f0',background:'white',flexShrink:0}}>
-          <div style={{fontSize:11,color:'#94a3b8'}}>Datos capturados al momento de gestionar · Solicitud #{sol.id}</div>
-          <div style={{display:'flex',gap:8}}>
-            {(sol.linkSecop||sol.linkDetalle)&&(
-              <a href={sol.linkSecop||sol.linkDetalle} target="_blank" rel="noopener noreferrer"
-                style={{display:'inline-flex',alignItems:'center',gap:6,height:34,padding:'0 14px',borderRadius:8,border:'1px solid #D0E4F3',background:'white',color:'#1E5799',fontSize:12,fontWeight:500,textDecoration:'none'}}>
-                <IcoExternalLink/>Abrir en portal
-              </a>
+              </div>
             )}
-            <button onClick={onClose} style={{height:34,padding:'0 18px',borderRadius:8,border:'1px solid #e2e8f0',background:'white',color:'#374151',fontSize:12,fontFamily:'var(--font)',cursor:'pointer'}}>
+
+            {/* 3. Documentos */}
+            {docArr.length>0&&(
+              <div>
+                <div style={{...secTitle,display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                  <span>Documentos ({docArr.length})</span>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    
+                    {/* Toggle vista */}
+                    {[{v:'grid',ico:<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>},{v:'list',ico:<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>}].map(({v,ico})=>(
+                      <button key={v} onClick={()=>setDocVista(v as 'grid'|'list')}
+                        style={{width:30,height:28,borderRadius:6,border:'1.5px solid #e2e8f0',background:docVista===v?'#1e5799':'white',color:docVista===v?'white':'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .15s'}}>
+                        {ico}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {docVista==='grid'
+                  ?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(100px,1fr))',gap:10}}>
+                    {docArr.map((d,i)=>{
+                      const url=d.ruta||d.url||'';
+                      const s=url.toLowerCase();
+                      const ext=s.includes('.xlsx')||s.includes('.xls')?{bg:'#f0fdf4',color:'#475569',label:'XLS'}:s.includes('.docx')||s.includes('.doc')?{bg:'#eff6ff',color:'#1d4ed8',label:'DOC'}:s.includes('.zip')||s.includes('.rar')?{bg:'#faf5ff',color:'#7e22ce',label:'ZIP'}:{bg:'#fff1f2',color:'#be123c',label:'PDF'};
+                      return(
+                        <a key={i} href={url||'#'} target="_blank" rel="noopener noreferrer"
+                      style={{display:'flex',flexDirection:'column' as const,alignItems:'center',gap:8,padding:'12px 8px',border:'1px solid #f1f5f9',borderRadius:10,textDecoration:'none',background:'white',transition:'all .15s',position:'relative' as const}}
+                      onMouseOver={e=>{
+                        (e.currentTarget as HTMLAnchorElement).style.borderColor='#e2e8f0';
+                        (e.currentTarget as HTMLAnchorElement).style.background='#fafcff';
+                        const btn=e.currentTarget.querySelector('.doc-dl-btn') as HTMLElement;
+                        if(btn)btn.style.opacity='1';
+                      }}
+                      onMouseOut={e=>{
+                        (e.currentTarget as HTMLAnchorElement).style.borderColor='#f1f5f9';
+                        (e.currentTarget as HTMLAnchorElement).style.background='white';
+                        const btn=e.currentTarget.querySelector('.doc-dl-btn') as HTMLElement;
+                        if(btn)btn.style.opacity='0';
+                      }}>
+                      {/* Botón descarga hover */}
+                      <div className="doc-dl-btn" style={{position:'absolute' as const,top:6,right:6,width:22,height:22,borderRadius:5,background:'#1e5799',display:'flex',alignItems:'center',justifyContent:'center',opacity:0,transition:'opacity .15s'}}>
+                        <svg fill="none" stroke="white" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:11,height:11}}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      </div>
+                      <div style={{width:48,height:56,borderRadius:'4px 12px 4px 4px',background:ext.bg,border:`1.5px solid ${ext.color}20`,display:'flex',alignItems:'flex-end',justifyContent:'center',paddingBottom:7,position:'relative' as const}}>
+                        <div style={{position:'absolute' as const,top:0,right:0,width:12,height:12,background:'white',borderLeft:`1.5px solid ${ext.color}20`,borderBottom:`1.5px solid ${ext.color}20`,borderRadius:'0 0 0 4px'}}/>
+                        <span style={{fontSize:8,fontWeight:800,color:ext.color,letterSpacing:'0.05em',fontFamily:F}}>{ext.label}</span>
+                      </div>
+                      <div style={{fontSize:10.5,fontWeight:500,color:'#334155',fontFamily:F,textAlign:'center' as const,lineHeight:1.35,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical' as const,maxWidth:'100%'}}>{d.nombre||`Documento ${i+1}`}</div>
+                    </a>
+                      );
+                    })}
+                  </div>
+                  :<div style={{display:'flex',flexDirection:'column' as const,gap:0}}>
+                    {docArr.map((d,i)=>{
+                      const url=d.ruta||d.url||'';
+                      const s=url.toLowerCase();
+                      const ext=s.includes('.xlsx')||s.includes('.xls')?{bg:'#f0fdf4',color:'#475569',label:'XLS'}:s.includes('.docx')||s.includes('.doc')?{bg:'#eff6ff',color:'#1d4ed8',label:'DOC'}:s.includes('.zip')||s.includes('.rar')?{bg:'#faf5ff',color:'#7e22ce',label:'ZIP'}:{bg:'#fff1f2',color:'#be123c',label:'PDF'};
+                      return(
+                        <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:i<docArr.length-1?'1px solid #f8fafc':'none'}}>
+                          <div style={{width:32,height:38,borderRadius:'3px 8px 3px 3px',background:ext.bg,border:`1px solid ${ext.color}20`,display:'flex',alignItems:'flex-end',justifyContent:'center',paddingBottom:5,position:'relative' as const,flexShrink:0}}>
+                            <div style={{position:'absolute' as const,top:0,right:0,width:9,height:9,background:'white',borderLeft:`1px solid ${ext.color}20`,borderBottom:`1px solid ${ext.color}20`,borderRadius:'0 0 0 3px'}}/>
+                            <span style={{fontSize:7,fontWeight:800,color:ext.color,fontFamily:F}}>{ext.label}</span>
+                          </div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:12.5,fontWeight:600,color:'#1e293b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' as const,fontFamily:F}}>{d.nombre||`Documento ${i+1}`}</div>
+                          </div>
+                          {url&&(
+                            <a href={url} target="_blank" rel="noopener noreferrer"
+                              style={{flexShrink:0,width:28,height:28,borderRadius:6,border:'1px solid #e2e8f0',background:'white',display:'flex',alignItems:'center',justifyContent:'center',color:'#64748b',transition:'all .15s'}}
+                              onMouseOver={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#1e5799';(e.currentTarget as HTMLAnchorElement).style.color='#1e5799';}}
+                              onMouseOut={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#e2e8f0';(e.currentTarget as HTMLAnchorElement).style.color='#64748b';}}>
+                              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                }
+              </div>
+            )}
+          </div>
+          {/* ── COL DERECHA ── */}
+          <div className="modal-scroll-col" style={{display:'flex',flexDirection:'column' as const,background:'white',borderLeft:'1px solid #f1f5f9',overflowY:'auto',scrollbarWidth:'thin' as const,scrollbarColor:'transparent transparent'}}>
+
+            {/* Presupuesto */}
+            {valor&&(
+              <div style={{padding:'18px 16px',borderBottom:'1px solid #f1f5f9'}}>
+                <div style={labelStyle}>Presupuesto oficial</div>
+                <div style={{fontSize:18,fontWeight:700,color:FC_DARK,letterSpacing:'-0.02em',fontFamily:F,marginTop:5}}>{valor}</div>
+              </div>
+            )}
+
+            {/* Número del proceso */}
+            <div style={{padding:'18px 16px',borderBottom:'1px solid #f1f5f9'}}>
+              <SideItem label="Número del proceso">
+                <span style={{fontFamily:'monospace',fontSize:12}}>{sol.codigoProceso||'—'}</span>
+              </SideItem>
+              <SideItem label="Modalidad">{modalidadLabel}</SideItem>
+              {sol.estadoFuente&&(
+              <SideItem label="Estado">
+                <span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:600,color:eb.color,background:eb.bg,padding:'2px 9px',borderRadius:999,fontFamily:F}}>
+                  <span style={{width:5,height:5,borderRadius:'50%',background:eb.dot}}/>
+                  {sol.estadoFuente}
+                </span>
+              </SideItem>
+            )}
+              {sol.departamento&&<SideItem label="Localización">{sol.departamento}</SideItem>}
+              
+            </div>
+
+            {/* Fuentes */}
+            {fuentes.length>0&&(
+              <div style={{padding:'18px 16px',borderBottom:'1px solid #f1f5f9'}}>
+                <div style={{...labelStyle,marginBottom:12}}>Fuentes</div>
+                <div style={{display:'flex',flexDirection:'column' as const,gap:10}}>
+                  {fuentes.map((f,i)=>(
+                    <div key={i}>
+                      <div style={labelStyle}>{f.label}</div>
+                      <div style={{display:'flex',alignItems:'center',gap:6,marginTop:3}}>
+                        <a href={f.url} target="_blank" rel="noopener noreferrer"
+                          style={{fontSize:11,color:'#1e5799',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' as const,fontFamily:F}}>{f.url}</a>
+                        <CopiarLinkBtn url={f.url}/>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{flex:1}}/>
+
+            {/* Acciones */}
+            <div style={{padding:'14px 16px',borderTop:'1px solid #f1f5f9',background:'white',display:'flex',flexDirection:'column' as const,gap:8}}>
+            
+              <button onClick={onClose}
+              style={{height:36,borderRadius:8,border:'none',background:'#1e5799',color:'white',fontSize:12.5,fontWeight:600,fontFamily:F,cursor:'pointer',transition:'all .15s'}}
+              onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#174a85';}}
+              onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='#1e5799';}}>
               Cerrar
-            </button>
+             </button>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
 /* ══════════════════════════════════════════════════════════════
    MODAL PROCESO — Control de solicitud (edición de estado)
    ModalDetallesProceso se abre desde aquí con el botón.
 ══════════════════════════════════════════════════════════════ */
-function ModalProceso({sol,onClose,onGuardado}:{sol:Solicitud;onClose:()=>void;onGuardado:(updated:Solicitud)=>void}){
-  const [nuevoEstado,setNuevoEstado]=useState<string>(sol.estadoSolicitud||'En revisión');
-  const [guardando,setGuardando]=useState(false);
-  const [error,setError]=useState('');
-  const [guardadoOk,setGuardadoOk]=useState(false);
-  const [verDetalle,setVerDetalle]=useState(false);
+/* ══════════════════════════════════════════════════════════════
+   MODAL ASIGNAR PROCESO
+   Reemplaza ModalProceso — mismo estilo que ModalDetallesProceso
+   Permite seleccionar responsable y crear asignación pendiente
+══════════════════════════════════════════════════════════════ */
+function ModalProceso({sol,onClose,onGuardado,sesion,variante}:{sol:Solicitud;onClose:()=>void;onGuardado:(updated:Solicitud)=>void;sesion:Sesion;variante?:string}){
+  const [usuarios,setUsuarios]=React.useState<Array<{id:number;usuario:string;cargo:string;entidadGrupo:string;rol:string;estado:string}>>([]);
+  const [verDetalle,setVerDetalle]=React.useState(false);
+  const [responsable,setResponsable]=React.useState('');
+  const [asignando,setAsignando]=React.useState(false);
+  const [error,setError]=React.useState('');
+  const [ok,setOk]=React.useState('');
+
+  const asignaciones:Array<Record<string,unknown>>=Array.isArray(sol.asignaciones)?sol.asignaciones as Array<Record<string,unknown>>:[];
 
   const fmtFechaHora=(r:string|null)=>{if(!r)return'—';const d=new Date(r);return isNaN(d.getTime())?r:d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});};
+  const fmtV=(v:number|null)=>{if(v==null||isNaN(v)||v===0)return null;return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(v);};
 
+  const portal=portalColorModal(sol.aliasFuente||'',sol.fuente||'',sol.fuente||'');
   const pc=sol.perfil?perfilColor(sol.perfil):null;
-  const ebc=estadoSolicitudColor(sol.estadoSolicitud||'');
-  const portalInfo=portalColor(sol.aliasFuente||'',sol.fuente||'');
+  const valor=fmtV(sol.valor);
+  const modalidadLabel=MMAP_MODALIDAD[sol.modalidad]??sol.modalidad??'—';
 
-  const sqrLabel=sol.sqrError?'Error SQR':sol.sqrNumero?sol.sqrNumero:'Sin SQR';
-  const sqrBg=sol.sqrError?'#fef2f2':sol.sqrNumero?'#E8F5E9':'#f1f5f9';
-  const sqrColor=sol.sqrError?'#dc2626':sol.sqrNumero?'#15803d':'#64748b';
+  const F='var(--font)';
+  const FC='#334155';
+  const FC_LABEL='#94a3b8';
+  const FC_DARK='#0f172a';
+  const baseText:React.CSSProperties={fontSize:13,color:FC,fontFamily:F,lineHeight:1.5};
+  const labelStyle:React.CSSProperties={fontSize:9,fontWeight:700,color:FC_LABEL,letterSpacing:'0.1em',textTransform:'uppercase' as const,fontFamily:F,marginBottom:4};
+  const secTitle:React.CSSProperties={fontSize:12,fontWeight:700,color:FC_DARK,fontFamily:F,letterSpacing:'-0.01em',marginBottom:12,paddingBottom:8,borderBottom:'1px solid #f1f5f9'};
 
-  const guardarEstado=async()=>{
-    if(nuevoEstado===sol.estadoSolicitud){onClose();return;}
-    setGuardando(true);setError('');setGuardadoOk(false);
+  // Cargar usuarios activos
+  React.useEffect(()=>{
+    fetch('/api/users')
+      .then(r=>r.json())
+      .then(data=>{
+        if(Array.isArray(data)){
+        const todos=data.filter((u:any)=>u.estado==='Activo');
+        const filteredByProceso = variante==='COMERCIAL'
+          ? todos.filter((u:any)=>u.proceso==='Comercial')
+          : variante==='ESPECIALIZADA'
+          ? todos.filter((u:any)=>u.proceso&&u.proceso!=='Comercial')
+          : todos;
+        setUsuarios(filteredByProceso);        }
+      })
+      .catch(()=>{});
+  },[]);
+
+  const asignar=async()=>{
+    if(!responsable){setError('Selecciona un responsable.');return;}
+    setAsignando(true);setError('');setOk('');
     try{
-      const res=await fetch('/api/solicitudes',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:sol.id,estadoSolicitud:nuevoEstado})});
+      const u=usuarios.find(u=>u.usuario===responsable);
+      const ahora=new Date();
+      const pad=(n:number)=>String(n).padStart(2,'0');
+      const fechaStr=`${ahora.getFullYear()}-${pad(ahora.getMonth()+1)}-${pad(ahora.getDate())} ${pad(ahora.getHours())}:${pad(ahora.getMinutes())}:${pad(ahora.getSeconds())}`;
+      const asigActuales=Array.isArray(sol.asignaciones)?sol.asignaciones:[];
+      const numAsig=asigActuales.length+1;
+      const idAsignacion=`ASG-${String(numAsig).padStart(2,'0')}`;
+      const nueva={
+        idAsignacion,
+        solicitudId: sol.id,
+        solicitudNum: sol.id,
+        analistaAsignado: u?.usuario||responsable,
+        analistaCargo: u?.cargo||'',
+        analistaEntidad: u?.entidadGrupo||'',
+        asignadoPor: sesion.usuario||'',
+        asignadoPorCargo: sesion.cargo||'',
+        fechaAsignacion: fechaStr,
+        estadoAsignacion: 'Pendiente',
+        estadoBandeja: 'pendiente',
+        entidad: sol.entidad||'',
+        codigoProceso: sol.codigoProceso||'',
+        objeto: sol.objeto||'',
+        valor: sol.valor||null,
+        modalidad: sol.modalidad||'',
+        ciudad: sol.ciudad||sol.departamento||'',
+        perfil: sol.perfil||'',
+        fechaVencimiento: sol.fechaVencimiento||null,
+        observacion: '',
+      };
+
+      const nuevasAsignaciones=[...asignaciones, nueva];
+
+      const res=await fetch('/api/solicitudes',{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          id:sol.id,
+          estadoSolicitud:'Asignada',
+          asignaciones: nuevasAsignaciones,
+        }),
+      });
       const data=await res.json();
-      if(!res.ok||!data.ok){setError(data.error??'Error al guardar.');return;}
-      setGuardadoOk(true);
-      const updated:Solicitud={...sol,...data.solicitud,estadoSolicitud:nuevoEstado};
+      if(!res.ok||!data.ok){setError(data.error??'Error al asignar.');return;}
+      setOk(`Solicitud asignada a ${u?.usuario||responsable}`);
+      const updated:Solicitud={...sol,...data.solicitud,estadoSolicitud:'Asignada',asignaciones:nuevasAsignaciones};
       onGuardado(updated);
-      setTimeout(()=>onClose(),800);
+      setTimeout(()=>onClose(),1000);
     }catch{setError('No se pudo conectar.');}
-    finally{setGuardando(false);}
+    finally{setAsignando(false);}
   };
 
-  const filaInfo=(label:string,valor:React.ReactNode)=>(
-    <div style={{display:'flex',flexDirection:'column',gap:2,marginBottom:10}}>
-      <span style={{fontSize:9.5,fontWeight:700,color:'#94a3b8',textTransform:'uppercase' as const,letterSpacing:'0.07em'}}>{label}</span>
-      <span style={{fontSize:12.5,color:'#1e293b',lineHeight:1.4}}>{valor}</span>
+  const SideItem=({label,children}:{label:string;children:React.ReactNode})=>(
+    <div>
+      <div style={labelStyle}>{label}</div>
+      <div style={{...baseText,fontSize:12.5}}>{children}</div>
     </div>
   );
 
   return(
-    <>
-      {verDetalle&&<ModalDetallesProceso sol={sol} onClose={()=>setVerDetalle(false)}/>}
-
-      <div className="modal-overlay" style={{zIndex:900}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-        <div style={{background:'white',borderRadius:12,width:'94vw',maxWidth:680,maxHeight:'92vh',display:'flex',flexDirection:'column',boxShadow:'0 20px 60px rgba(15,32,64,.22)',overflow:'hidden',border:'1px solid #e2e8f0'}}>
-
-          {/* HEADER */}
-          <div style={{background:'linear-gradient(135deg,#0d2d5e 0%,#1a5ea8 100%)',padding:'16px 22px',flexShrink:0}}>
-            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:14}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
-                  <span style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.6)',letterSpacing:'0.06em'}}>FICHA DE SOLICITUD #{sol.id}</span>
-                  <span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:ebc.bg,color:ebc.color,fontWeight:700}}>{sol.estadoSolicitud}</span>
-                  {pc&&<span style={{fontSize:11,padding:'2px 10px',borderRadius:20,background:pc.bg,color:pc.color,fontWeight:600}}>{pc.label}</span>}
-                  <span style={{fontSize:11,padding:'2px 8px',borderRadius:6,background:'rgba(255,255,255,0.15)',color:'white',fontWeight:600}}>{portalInfo.label}</span>
-                </div>
-                <div style={{fontSize:15,fontWeight:700,color:'white',lineHeight:1.3,marginBottom:4}}>{sol.entidad||sol.nombreProceso||'Proceso sin nombre'}</div>
-                <div style={{fontSize:11.5,color:'rgba(255,255,255,0.7)',fontFamily:'monospace'}}>{sol.codigoProceso||''}</div>
+  <>
+    {verDetalle&&<ModalDetallesProceso sol={sol} onClose={()=>setVerDetalle(false)}/>}
+    <div className="modal-overlay" style={{zIndex:900}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div style={{background:'white',borderRadius:16,width:'96vw',maxWidth:980,maxHeight:'92vh',display:'flex',flexDirection:'column' as const,boxShadow:'0 24px 64px rgba(15,23,42,0.18)',overflow:'hidden',border:'1px solid #e2e8f0'}}>
+        
+        {/* HEADER */}
+        <div style={{background:'white',borderBottom:'1px solid #f1f5f9',padding:'16px 24px',flexShrink:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:14}}>
+            <div style={{width:42,height:42,borderRadius:10,background:'#1e5799',color:'white',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,letterSpacing:'0.04em',fontFamily:F}}>{portal.short}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:15,fontWeight:700,color:FC_DARK,letterSpacing:'-0.02em',lineHeight:1.25,marginBottom:5,fontFamily:F}}>{sol.entidad||'Asignar proceso'}</div>
+              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap' as const}}>
+                {sol.codigoProceso&&<span style={{fontSize:11,color:'#64748b',background:'#f8fafc',border:'1px solid #e8edf2',padding:'2px 9px',borderRadius:5,fontFamily:'monospace'}}>{sol.codigoProceso}</span>}
+                {pc&&<span style={{fontSize:11,color:pc.color,background:pc.bg,padding:'2px 9px',borderRadius:999,fontWeight:600,fontFamily:F}}>{pc.label}</span>}
+                <span style={{fontSize:10,color:FC_LABEL,fontFamily:F}}>Ficha #{sol.id}</span>
               </div>
-              <button onClick={onClose} style={{width:30,height:30,borderRadius:'50%',border:'1px solid rgba(255,255,255,0.3)',background:'rgba(255,255,255,0.1)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'white',flexShrink:0}}
-                onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='rgba(255,255,255,0.2)';}}
-                onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='rgba(255,255,255,0.1)';}}>
-                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </div>
+            <button onClick={onClose} style={{width:30,height:30,borderRadius:8,border:'1.5px solid #e2e8f0',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#94a3b8',flexShrink:0,transition:'all .15s'}}
+              onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#fef2f2';(e.currentTarget as HTMLButtonElement).style.color='#ef4444';(e.currentTarget as HTMLButtonElement).style.borderColor='#fca5a5';}}
+              onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';(e.currentTarget as HTMLButtonElement).style.color='#94a3b8';(e.currentTarget as HTMLButtonElement).style.borderColor='#e2e8f0';}}>
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* BODY: 2 columnas */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 300px',flex:1,minHeight:0,overflow:'hidden'}}>
+
+          {/* COL IZQUIERDA */}
+          <div style={{overflowY:'auto',padding:'20px 24px',display:'flex',flexDirection:'column' as const,gap:22,scrollbarWidth:'thin' as const}}>
+
+           {/* Resumen proceso */}
+          <div>
+            <div style={secTitle}>Información del proceso</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px 28px'}}>
+              {[
+                {label:'Entidad', value:sol.entidad||'—'},
+                {label:'Número de proceso', value:<span style={{fontFamily:'monospace',fontSize:12}}>{sol.codigoProceso||'—'}</span>},
+                {label:'Modalidad', value:modalidadLabel},
+                {label:'Fuente', value:sol.fuente||'—'},
+                {label:'Registrado por', value:`${sol.usuarioRegistro||'—'}${sol.cargoRegistro?` · ${sol.cargoRegistro}`:''}`},
+                {label:'Fecha registro', value:fmtFechaHora(sol.createdAt)},
+              ].map(({label,value},i)=>(
+                <div key={i} style={{paddingBottom:12,borderBottom:'1px solid #f1f5f9'}}>
+                  <div style={labelStyle}>{label}</div>
+                  <div style={baseText}>{value}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid #f1f5f9'}}>
+              <button
+                onClick={()=>setVerDetalle(true)}
+                style={{display:'inline-flex',alignItems:'center',gap:8,height:34,padding:'0 16px',borderRadius:8,border:'1.5px solid #1e5799',background:'white',color:'#1e5799',fontSize:12.5,fontWeight:600,fontFamily:'var(--font)',cursor:'pointer',transition:'all .15s'}}
+                onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#eff6ff';}}
+                onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';}}>
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}><path d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V8.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0014.586 2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                Ver datos del proceso
               </button>
             </div>
           </div>
 
-          {/* BANNER SQR */}
-          <div style={{background:sqrBg,borderBottom:'1px solid #e2e8f0',padding:'10px 22px',flexShrink:0,display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <div style={{width:28,height:28,borderRadius:6,background:sol.sqrNumero?'#15803d':sol.sqrError?'#dc2626':'#94a3b8',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                {sol.sqrNumero
-                  ?<svg fill="none" stroke="white" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M20 6L9 17l-5-5"/></svg>
-                  :sol.sqrError
-                    ?<svg fill="none" stroke="white" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-                    :<svg fill="none" stroke="white" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-                }
-              </div>
-              <div>
-                <div style={{fontSize:9.5,fontWeight:700,color:'#64748b',textTransform:'uppercase' as const,letterSpacing:'0.07em'}}>SQR — Generado automáticamente</div>
-                <div style={{fontSize:13.5,fontWeight:700,color:sqrColor,fontFamily:'monospace',marginTop:1}}>{sqrLabel}</div>
+            {/* Asignar responsable */}
+            <div>
+              <div style={secTitle}>Asignar responsable</div>
+              <div style={{display:'flex',flexDirection:'column' as const,gap:10}}>
+                <div>
+                  <div style={labelStyle}>Responsable <span style={{color:'#ef4444'}}>*</span></div>
+                  <select
+                    value={responsable}
+                    onChange={e=>setResponsable(e.target.value)}
+                    style={{width:'100%',height:38,border:'1.5px solid #e2e8f0',borderRadius:8,padding:'0 12px',fontSize:13,fontFamily:F,color:responsable?FC_DARK:'#94a3b8',background:'white',outline:'none',cursor:'pointer'}}>
+                    <option value="">— Seleccione un responsable —</option>
+                    {usuarios.map(u=>(
+                      <option key={u.id} value={u.usuario}>{u.usuario} · {u.cargo} · {u.entidadGrupo}</option>
+                    ))}
+                  </select>
+                </div>
+                {responsable&&(()=>{
+                  const u=usuarios.find(u=>u.usuario===responsable);
+                  if(!u)return null;
+                  return(
+                    <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'#f8fafc',border:'1px solid #f1f5f9',borderRadius:8}}>
+                      <div style={{width:32,height:32,borderRadius:8,background:'#1e5799',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0,fontFamily:F}}>
+                        {u.usuario.slice(0,2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:600,color:FC_DARK,fontFamily:F}}>{u.usuario}</div>
+                        <div style={{fontSize:11,color:FC_LABEL,fontFamily:F}}>{u.cargo} · {u.entidadGrupo}</div>
+                      </div>
+                    </div>
+                  );
+                })()}
+                {error&&<div style={{fontSize:12,color:'#dc2626',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,padding:'8px 12px',fontFamily:F}}>⚠️ {error}</div>}
+                {ok&&<div style={{fontSize:12,color:'#475569',background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:6,padding:'8px 12px',fontFamily:F}}>✓ {ok}</div>}
               </div>
             </div>
-            {sol.fechaAperturaSqr&&(
-              <div style={{display:'flex',flexDirection:'column',gap:1}}>
-                <span style={{fontSize:9.5,fontWeight:700,color:'#94a3b8',textTransform:'uppercase' as const,letterSpacing:'0.07em'}}>Apertura SQR</span>
-                <span style={{fontSize:11.5,color:'#374151',fontWeight:500}}>{fmtFechaHora(sol.fechaAperturaSqr)}</span>
-              </div>
-            )}
-            {sol.fechaCierreSqr&&(
-              <div style={{display:'flex',flexDirection:'column',gap:1}}>
-                <span style={{fontSize:9.5,fontWeight:700,color:'#94a3b8',textTransform:'uppercase' as const,letterSpacing:'0.07em'}}>Cierre SQR</span>
-                <span style={{fontSize:11.5,color:'#374151',fontWeight:500}}>{fmtFechaHora(sol.fechaCierreSqr)}</span>
-              </div>
-            )}
-            {sol.sqrCerrada&&<span style={{fontSize:11,padding:'3px 10px',borderRadius:20,background:'#6b7280',color:'white',fontWeight:600}}>SQR Cerrada</span>}
-            {sol.sqrError&&<div style={{flex:1,minWidth:180}}><span style={{fontSize:11,color:'#dc2626',lineHeight:1.4}}>{sol.sqrError}</span></div>}
+
+            {/* Historial de asignaciones */}
+            <div>
+              <div style={secTitle}>Historial de asignaciones ({asignaciones.length})</div>
+              {asignaciones.length===0
+                ?<div style={{textAlign:'center' as const,padding:'24px 0',color:FC_LABEL,fontSize:12,fontFamily:F}}>Sin asignaciones previas</div>
+                :<div style={{display:'flex',flexDirection:'column' as const,gap:0}}>
+                  {asignaciones.map((a,i)=>(
+                    <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:i<asignaciones.length-1?'1px solid #f8fafc':'none'}}>
+                      <div style={{width:32,height:32,borderRadius:8,background:'#f1f5f9',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        <svg fill="none" stroke="#64748b" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"/></svg>
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:12.5,fontWeight:600,color:FC_DARK,fontFamily:F}}>{String(a.analistaAsignado||'—')}</div>
+                        <div style={{fontSize:11,color:FC_LABEL,fontFamily:F}}>{String(a.analistaCargo||'')} · {String(a.fechaAsignacion||'').slice(0,10)}</div>
+                      </div>
+                      <span style={{fontSize:11,fontWeight:600,padding:'2px 9px',borderRadius:999,background:a.estadoAsignacion==='Pendiente'?'#fef3c7':a.estadoAsignacion==='Terminada'?'#f0fdf4':'#f1f5f9',color:a.estadoAsignacion==='Pendiente'?'#92400e':a.estadoAsignacion==='Terminada'?'#15803d':'#475569',fontFamily:F}}>
+                        {String(a.estadoAsignacion||'—')}
+                      </span>
+                      <div style={{fontSize:10,color:FC_LABEL,fontFamily:'monospace'}}>{String(a.idAsignacion||'')}</div>
+                    </div>
+                  ))}
+                </div>
+              }
+            </div>
           </div>
 
-          {/* CUERPO */}
-          <div style={{flex:1,overflowY:'auto',padding:'18px 22px',display:'flex',flexDirection:'column',gap:16}}>
+          {/* COL DERECHA */}
+          <div style={{display:'flex',flexDirection:'column' as const,background:'#fafcff',borderLeft:'1px solid #f1f5f9',overflowY:'auto'}}>
 
-            {/* Resumen read-only del proceso */}
-            <div style={{background:'#FAFCFF',border:'1px solid #D0E4F3',borderRadius:10,padding:'14px 16px'}}>
-              <div style={{fontSize:10,fontWeight:700,color:'#1E5799',textTransform:'uppercase' as const,letterSpacing:'0.08em',marginBottom:12,paddingBottom:8,borderBottom:'2px solid #EAF2FB'}}>
-                Resumen del proceso
+            {/* Presupuesto */}
+            {valor&&(
+              <div style={{padding:'18px 16px',borderBottom:'1px solid #f1f5f9'}}>
+                <div style={labelStyle}>Presupuesto oficial</div>
+                <div style={{fontSize:18,fontWeight:700,color:FC_DARK,letterSpacing:'-0.02em',fontFamily:F,marginTop:5}}>{valor}</div>
               </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0 24px'}}>
-                {filaInfo('Entidad / Cliente',<strong style={{fontWeight:600}}>{sol.entidad||'—'}</strong>)}
-                {filaInfo('Número de proceso',<span style={{fontFamily:'monospace'}}>{sol.codigoProceso||'—'}</span>)}
-                {filaInfo('Modalidad',MMAP_MODALIDAD[sol.modalidad]||sol.modalidad||'—')}
-                {filaInfo('Fuente',`${sol.fuente||'—'}${sol.plataforma?` (${sol.plataforma})`:''}`)}
-                {filaInfo('Registrado por',`${sol.usuarioRegistro||'—'}${sol.cargoRegistro?` · ${sol.cargoRegistro}`:''}`)}
-                {filaInfo('Fecha registro',fmtFechaHora(sol.createdAt))}
-              </div>
+            )}
 
-              {/* Botón Ver datos del proceso */}
-              <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid #D0E4F3'}}>
-                <button
-                  onClick={()=>setVerDetalle(true)}
-                  style={{display:'inline-flex',alignItems:'center',gap:8,height:36,padding:'0 18px',borderRadius:8,border:'1.5px solid #1E5799',background:'white',color:'#1E5799',fontSize:12.5,fontWeight:600,fontFamily:'var(--font)',cursor:'pointer',transition:'all .15s'}}
-                  onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#EAF2FB';(e.currentTarget as HTMLButtonElement).style.borderColor='#1a5ea8';}}
-                  onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';(e.currentTarget as HTMLButtonElement).style.borderColor='#1E5799';}}>
-                  <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}>
-                    <path d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V8.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0014.586 2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                  </svg>
-                  Ver datos del proceso
-                </button>
-              </div>
-            </div>
-
-            {/* Control de solicitud — única sección editable */}
-            <div style={{background:'#FAFCFF',border:'1px solid #D0E4F3',borderRadius:10,padding:'14px 16px'}}>
-              <div style={{fontSize:10,fontWeight:700,color:'#1E5799',textTransform:'uppercase' as const,letterSpacing:'0.08em',marginBottom:12,paddingBottom:8,borderBottom:'2px solid #EAF2FB'}}>
-                Control de solicitud
-              </div>
-              <div style={{fontSize:11.5,color:'#64748b',marginBottom:10,lineHeight:1.5}}>
-                Solo puedes cambiar el estado a <strong>Rechazada</strong> o volver a <strong>En revisión</strong>.
-              </div>
-              <label style={{fontSize:11,fontWeight:700,color:'#374151',display:'block',marginBottom:6}}>Estado de la solicitud</label>
-              <select
-                value={nuevoEstado}
-                onChange={e=>setNuevoEstado(e.target.value)}
-                style={{width:'100%',height:38,border:'2px solid #1a5ea8',borderRadius:8,padding:'0 12px',fontSize:13,fontFamily:'var(--font)',color:'#1e293b',background:'white',outline:'none',cursor:'pointer',fontWeight:600}}>
-                <option value="En revisión">En revisión</option>
-                <option value="Rechazada">Rechazada</option>
-              </select>
-              {nuevoEstado!==sol.estadoSolicitud&&(
-                <div style={{marginTop:8,fontSize:11,color:'#0369a1',background:'#e0f2fe',borderRadius:6,padding:'5px 10px'}}>
-                  ← Cambiará de <strong>{sol.estadoSolicitud}</strong> a <strong>{nuevoEstado}</strong>
-                </div>
+            {/* Datos clave */}
+            <div style={{padding:'18px 16px',borderBottom:'1px solid #f1f5f9',display:'flex',flexDirection:'column' as const,gap:14}}>
+              <SideItem label="Número del proceso">
+                <span style={{fontFamily:'monospace',fontSize:12}}>{sol.codigoProceso||'—'}</span>
+              </SideItem>
+              <SideItem label="Modalidad">{modalidadLabel}</SideItem>
+              <SideItem label="Estado solicitud">
+                {(()=>{const ebc=estadoSolicitudColor(sol.estadoSolicitud||'');return(<span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,fontWeight:600,color:ebc.color,background:ebc.bg,padding:'2px 9px',borderRadius:999,fontFamily:F}}>{sol.estadoSolicitud||'—'}</span>);})()}
+              </SideItem>
+              {sol.departamento&&<SideItem label="Localización">{sol.departamento}</SideItem>}
+              {sol.fechaVencimiento&&(
+                <SideItem label="Vencimiento">
+                  <span style={{fontSize:12.5,fontFamily:F}}>{fmtFechaHora(sol.fechaVencimiento)}</span>
+                </SideItem>
               )}
             </div>
-          </div>
 
-          {/* FOOTER */}
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 22px',borderTop:'2px solid #EAF2FB',background:'#FAFCFF',flexShrink:0}}>
-            <div style={{fontSize:11,color:'#94a3b8'}}>Solicitud #{sol.id} · {fmtFechaHora(sol.createdAt)}</div>
-            <div style={{display:'flex',gap:8,alignItems:'center'}}>
-              {guardadoOk&&<span style={{fontSize:11.5,color:'#15803d',fontWeight:600,display:'flex',alignItems:'center',gap:4}}><svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M20 6L9 17l-5-5"/></svg>Guardado</span>}
-              {error&&<span style={{fontSize:11.5,color:'#dc2626'}}>⚠️ {error}</span>}
-              <button onClick={onClose} style={{height:36,padding:'0 16px',borderRadius:8,border:'1px solid #e2e8f0',background:'white',color:'#374151',fontSize:12,fontFamily:'var(--font)',cursor:'pointer',fontWeight:500}}>Cerrar</button>
-              <button onClick={guardarEstado} disabled={guardando} style={{height:36,padding:'0 20px',borderRadius:8,background:guardando?'#6b93c4':'#1a5ea8',color:'white',border:'none',fontSize:12,fontWeight:700,fontFamily:'var(--font)',cursor:guardando?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:6}}>
-                <svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:12,height:12}}><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                {guardando?'Guardando…':'Guardar cambios'}
+            {/* SQR */}
+            {sol.sqrNumero&&(
+              <div style={{padding:'18px 16px',borderBottom:'1px solid #f1f5f9'}}>
+                <div style={labelStyle}>SQR</div>
+                <div style={{fontSize:13,fontWeight:700,color:'#475569',fontFamily:'monospace',marginTop:4}}>{sol.sqrNumero}</div>
+                {sol.fechaAperturaSqr&&<div style={{fontSize:11,color:FC_LABEL,fontFamily:F,marginTop:3}}>Apertura: {fmtFechaHora(sol.fechaAperturaSqr)}</div>}
+              </div>
+            )}
+
+            <div style={{flex:1}}/>
+
+            {/* Acciones */}
+            <div style={{padding:'14px 16px',borderTop:'1px solid #f1f5f9',background:'white',display:'flex',flexDirection:'column' as const,gap:8}}>
+              <button onClick={asignar} disabled={asignando||!responsable}
+                style={{height:38,borderRadius:8,background:asignando||!responsable?'#94a3b8':'#1e5799',color:'white',border:'none',fontSize:13,fontWeight:600,fontFamily:F,cursor:asignando||!responsable?'not-allowed':'pointer',transition:'all .15s',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}
+                onMouseOver={e=>{if(!asignando&&responsable)(e.currentTarget as HTMLButtonElement).style.background='#174a85';}}
+                onMouseOut={e=>{if(!asignando&&responsable)(e.currentTarget as HTMLButtonElement).style.background='#1e5799';}}>
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"/></svg>
+                {asignando?'Asignando…':'Asignar solicitud'}
               </button>
+              <button onClick={onClose}
+                style={{height:36,borderRadius:8,border:'1.5px solid #e2e8f0',background:'white',color:'#475569',fontSize:12.5,fontWeight:500,fontFamily:F,cursor:'pointer',transition:'all .15s'}}
+                onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#f8fafc';}}
+                onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';}}>
+                Cerrar
+              </button>
+              <div style={{fontSize:10,color:FC_LABEL,textAlign:'center' as const,fontFamily:F}}>Solicitud #{sol.id} · {fmtFechaHora(sol.createdAt)}</div>
             </div>
           </div>
         </div>
       </div>
-    </>
+    </div>
+  </>
+
   );
 }
-
 /* ══════════════════════════════════════════════════════════════
    MÓDULO SOLICITUDES ABIERTAS
 ══════════════════════════════════════════════════════════════ */
@@ -1436,31 +2246,21 @@ function ModalEditarSolicitud({
         : form.tipoProceso;
 
       const res = await fetch('/api/solicitudes', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: sol.id,
-          entidad: form.entidad,
-          objeto: form.objeto,
-          modalidad: modalidadFinal,
-          perfil: form.entidadGrupo,
-          ciudad: form.ciudad,
-          plataforma: form.plataforma,
-          fechaCierre: form.fechaCierre || null,
-          body: JSON.stringify({
-          id: sol.id,
-          entidad: form.entidad,
-          objeto: form.objeto,
-          modalidad: modalidadFinal,
-          perfil: form.entidadGrupo,
-          ciudad: form.ciudad,
-          plataforma: form.plataforma,
-          fechaCierre: form.fechaCierre || null,
-          estadoSolicitud: form.estadoSolicitud,
-          }),
-        }),
-      });
-
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    id: sol.id,
+    entidad: form.entidad,
+    objeto: form.objeto,
+    modalidad: modalidadFinal,
+    perfil: form.entidadGrupo,
+    ciudad: form.ciudad,
+    plataforma: form.plataforma,
+    fechaCierre: form.fechaCierre || null,
+    estadoSolicitud: form.estadoSolicitud,
+    origenSolicitud: sol.origenSolicitud ?? origenSolicitudAuto,
+  }),
+});
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
@@ -1507,6 +2307,14 @@ function ModalEditarSolicitud({
     background: '#f8fafc',
     color: '#94a3b8',
   };
+
+  const readOnlyInput: React.CSSProperties = {
+  background: '#f1f5f9',
+  color: '#64748b',
+  borderColor: '#e2e8f0',
+  cursor: 'not-allowed',
+  boxShadow: 'none',
+};
 
   const lS: React.CSSProperties = {
     fontSize: 12,
@@ -1695,46 +2503,65 @@ const SUBTIPOS:Record<string,string[]>={
 const UEN_OPTIONS=['Barranquilla','Bogotá','Mina'];
 const CIUDADES_CO=['Medellín','Bogotá D.C.','Cali','Barranquilla','Cartagena','Bucaramanga','Pereira','Manizales','Cúcuta','Ibagué','Santa Marta','Villavicencio','Pasto','Montería','Neiva','Armenia','Popayán','Valledupar','Sincelejo','Tunja','Riohacha','Quibdó','Florencia','Mocoa','Leticia','Puerto Inírida','San José del Guaviare','Mitú','Puerto Carreño','Yopal','Arauca','San Andrés','Otra'];
 
-function ModalCrearSolicitud({sesion,onClose,onCreada}:{sesion:Sesion;onClose:()=>void;onCreada:()=>void}){
+function ModalCrearSolicitud({
+  sesion,
+  onClose,
+  onCreada,
+  origenSolicitud,
+}: {
+  sesion: Sesion;
+  onClose: () => void;
+  onCreada: () => void;
+  origenSolicitud: 'Comercial' | 'Especializada';
+}) {
   const ahora = new Date().toLocaleString('es-CO',{
     year:'numeric',month:'2-digit',day:'2-digit',
     hour:'2-digit',minute:'2-digit',second:'2-digit'
   }).replace(',','');
 
   const formInicial = {
-    fechaSolicitud: ahora,
-    nombrePersonal: sesion.usuario,
-    origenSolicitud: 'Comercial',
-    tipoProceso:'',
-    subtipoProceso:'',
-    entidadGrupo:'',
-    uen:'',
-    ciudad:'',
-    entidad:'',
-    codigoProceso:'',
-    objeto:'',
-    valor:'',
-    departamento:'',
-    plataforma:'',
-    linkDetalle:'',
-    fechaCierre:''
-  };
+  fechaSolicitud: ahora,
+  nombrePersonal: sesion.usuario,
+  origenSolicitud,
+  tipoProceso: '',
+  subtipoProceso: '',
+  entidadGrupo: '',
+  uen: '',
+  ciudad: '',
+  entidad: '',
+  codigoProceso: '',
+  objeto: '',
+  valor: '',
+  departamento: '',
+  plataforma: '',
+  linkDetalle: '',
+  fechaCierre: '',
 
-  const [form,setForm] = useState(() => {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const draft = JSON.parse(raw);
-        return {
-          ...formInicial,
-          ...draft,
-          fechaSolicitud: ahora,
-          nombrePersonal: sesion.usuario
-        };
-      }
-    } catch {}
-    return formInicial;
-  });
+  nitContacto: '',
+  personaContacto: '',
+  telefonoContacto: '',
+  direccionContacto: '',
+  correoContacto: '',
+};
+
+const [form, setForm] = useState(() => {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (raw) {
+      const draft = JSON.parse(raw);
+
+      return {
+        ...formInicial,
+        ...draft,
+        fechaSolicitud: ahora,
+        nombrePersonal: sesion.usuario,
+        origenSolicitud,
+      };
+    }
+  } catch {}
+
+  return formInicial;
+});
 
   const [tieneBorrador, setTieneBorrador] = useState(() => {
     try {
@@ -1754,57 +2581,76 @@ function ModalCrearSolicitud({sesion,onClose,onCreada}:{sesion:Sesion;onClose:()
   const subtipos=SUBTIPOS[form.tipoProceso]||[];
 
   const handleGuardar=async()=>{
-    setError('');
-    if(!form.tipoProceso||!form.entidadGrupo||!form.ciudad||!form.entidad||!form.codigoProceso||!form.objeto){
-      setError('Los campos marcados con * son obligatorios.');return;
-    }
-    setGuardando(true);
-    try{
-      // Mapear solo los campos que existen en el modelo Solicitud
-      const modalidadFinal = form.subtipoProceso
-        ? `${form.tipoProceso} — ${form.subtipoProceso}`
-        : form.tipoProceso;
-      const observacionFinal =
-  [
-    form.uen ? `UEN: ${form.uen}` : '',
-    form.origenSolicitud ? `Origen solicitud: ${form.origenSolicitud}` : '',
-  ]
-    .filter(Boolean)
-    .join(' | ') || null;
+  setError('');
+  if(!form.tipoProceso||!form.entidadGrupo||!form.ciudad||!form.entidad||!form.codigoProceso||!form.objeto){
+    setError('Los campos marcados con * son obligatorios.');return;
+  }
+  setGuardando(true);
+  try{
+    const modalidadFinal=form.subtipoProceso
+      ?form.subtipoProceso
+      :form.tipoProceso;
 
-      const res=await fetch('/api/solicitudes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        codigoProceso:   form.codigoProceso,
-        nombreProceso:   form.objeto,
-        entidad:         form.entidad,
-        objeto:          form.objeto,
-        modalidad:       form.subtipoProceso||form.tipoProceso,
-        sede:            form.tipoProceso,
-        perfil:          form.entidadGrupo,
-        ciudad:          form.ciudad,
-        plataforma:      form.plataforma||'Manual',
-        linkDetalle:     form.linkDetalle,
-        fechaCierre:     form.fechaCierre||null,
-        observacion:     observacionFinal,
-        valor:           form.valor?Number(form.valor.replace(/[^0-9]/g,'')):null,
-        estadoSolicitud: 'En revisión',
-        usuarioRegistro: sesion.usuario,
-        emailRegistro:   sesion.email,
-        cargoRegistro:   sesion.cargo,
-        entidadRegistro: form.entidadGrupo,
-        fuente:          form.plataforma||'Manual',
-        aliasFuente:     '',
-        docData:[],procData:{},obsData:[],
-      })});
-      const data=await res.json();
-      if(!res.ok||!data.ok)throw new Error(data.error??'No se pudo crear la solicitud');
-      try{localStorage.removeItem(DRAFT_KEY);}catch{/**/}
-      onCreada();onClose();
-    }catch(e){setError(e instanceof Error?e.message:'Error al guardar.');}
-    finally{setGuardando(false);}
-  };
+    const res=await fetch('/api/solicitudes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      codigoProceso:    form.codigoProceso,
+      nombreProceso:    form.objeto,
+      entidad:          form.entidad,
+      objeto:           form.objeto,
+      modalidad:        modalidadFinal,
+      sede:             form.tipoProceso,
+      perfil:           form.entidadGrupo,
+      ciudad:           form.ciudad,
+      departamento:     form.ciudad,
+      plataforma:       form.plataforma||'Manual',
+      linkDetalle:      form.linkDetalle||null,
+      fechaCierre:      form.fechaCierre||null,
+      fechaVencimiento: form.fechaCierre||null,
+      observacion:      form.uen?`UEN: ${form.uen}`:(null),
+      valor:            form.valor?Number(form.valor.replace(/[^0-9]/g,'')):null,
+      origenSolicitud,
+
+      // campos especializados
+      nitContacto:      form.nitContacto||null,
+      personaContacto:  form.personaContacto||null,
+      telefonoContacto: form.telefonoContacto||null,
+      direccionContacto:form.direccionContacto||null,
+      correoContacto:   form.correoContacto||null,
+
+      estadoSolicitud:  'En revisión',
+      usuarioRegistro:  sesion.usuario,
+      emailRegistro:    sesion.email,
+      cargoRegistro:    sesion.cargo,
+      entidadRegistro:  form.entidadGrupo,
+      fuente:           form.plataforma||'Manual',
+      aliasFuente:      '',
+      docData:[],procData:{},obsData:[],
+    })});
+    const data=await res.json();
+    if(!res.ok||!data.ok)throw new Error(data.error??'No se pudo crear la solicitud');
+    try{localStorage.removeItem(DRAFT_KEY);}catch{/**/}
+    onCreada();onClose();
+  }catch(e){setError(e instanceof Error?e.message:'Error al guardar.');}
+  finally{setGuardando(false);}
+};
 
   const iS:React.CSSProperties={width:'100%',height:38,border:'1.5px solid #e2e8f0',borderRadius:8,padding:'0 12px',fontSize:13,fontFamily:'var(--font)',color:'#1e293b',outline:'none',boxSizing:'border-box' as const,background:'white'};
-  const iSdis:React.CSSProperties={...iS,background:'#f8fafc',color:'#94a3b8'};
+  const iSdis:React.CSSProperties={
+  width:'100%',
+  height:38,
+  borderRadius:8,
+  padding:'0 12px',
+  fontSize:13,
+  fontFamily:'var(--font)',
+  boxSizing:'border-box' as const,
+  background:'#f4f6f9',
+  color:'#6b7280',
+  border:'1.5px solid #f4f6f9',
+  cursor:'default',
+  pointerEvents:'none' as const,
+  userSelect:'none' as const,
+  boxShadow:'none',
+  outline:'none',
+};
   const lS:React.CSSProperties={fontSize:12,fontWeight:600,color:'#374151',display:'block',marginBottom:5};
   const fG:React.CSSProperties={display:'flex',flexDirection:'column' as const,gap:4};
 
@@ -1827,102 +2673,241 @@ function ModalCrearSolicitud({sesion,onClose,onCreada}:{sesion:Sesion;onClose:()
           {error&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,padding:'9px 12px',color:'#dc2626',fontSize:12}}>⚠️ {error}</div>}
           {tieneBorrador&&<div style={{background:'#fefce8',border:'1px solid #fde68a',borderRadius:6,padding:'9px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}><span style={{fontSize:12,color:'#92400e'}}>📋 Se restauró un borrador guardado automáticamente.</span><button onClick={()=>{try{localStorage.removeItem(DRAFT_KEY);}catch{/**/}setForm({...formInicial,fechaSolicitud:ahora,nombrePersonal:sesion.usuario});setTieneBorrador(false);}} style={{fontSize:11,color:'#92400e',background:'none',border:'1px solid #fde68a',borderRadius:4,padding:'2px 8px',cursor:'pointer',fontFamily:'var(--font)'}}>Descartar</button></div>}
 
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-      <div style={fG}>
-        <label style={lS}>* Origen de la solicitud</label>
-        <select
-          style={iS}
-          value={form.origenSolicitud}
-          onChange={(e) => set('origenSolicitud', e.target.value)}
-        >
-          <option value="Comercial">Comercial</option>
-          <option value="Especializada">Especializada</option>
-        </select>
-      </div>
-      <div />
-    </div>
-
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+ {/* Fecha / Usuario */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={fG}>
               <label style={lS}>Fecha de creación</label>
-              <input style={iSdis} value={form.fechaSolicitud} readOnly/>
+              <input
+                style={{ ...iS, background: '#f1f5f9', color: '#64748b', borderColor: '#e2e8f0', cursor: 'not-allowed' }}
+                value={form.fechaSolicitud}
+                readOnly
+              />
             </div>
+
             <div style={fG}>
               <label style={lS}>Usuario registra</label>
-              <input style={iSdis} value={form.nombrePersonal} readOnly/>
+              <input
+                style={{ ...iS, background: '#f1f5f9', color: '#64748b', borderColor: '#e2e8f0', cursor: 'not-allowed' }}
+                value={form.nombrePersonal}
+                readOnly
+              />
             </div>
           </div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+          {/* Tipo / Entidad grupo */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={fG}>
               <label style={lS}>* Tipo de proceso</label>
-              <select style={iS} value={form.tipoProceso} onChange={e=>{set('tipoProceso',e.target.value);set('subtipoProceso','');}}>
+              <select
+                style={iS}
+                value={form.tipoProceso}
+                onChange={(e) => {
+                  set('tipoProceso', e.target.value);
+                  set('subtipoProceso', '');
+                }}
+              >
                 <option value="">— Seleccione —</option>
-                {TIPOS_PROCESO.map(t=><option key={t} value={t}>{t}</option>)}
+                <option value="Público">Público</option>
+                <option value="Privado">Privado</option>
               </select>
             </div>
+
             <div style={fG}>
               <label style={lS}>* Entidad del grupo</label>
-              <select style={iS} value={form.entidadGrupo} onChange={e=>set('entidadGrupo',e.target.value)}>
+              <select
+                style={iS}
+                value={form.entidadGrupo}
+                onChange={(e) => set('entidadGrupo', e.target.value)}
+              >
                 <option value="">— Seleccione —</option>
-                {ENTIDADES_GRUPO.map(e=><option key={e} value={e}>{e}</option>)}
+                <option value="Aseocolba">Aseocolba</option>
+                <option value="Tempocolba">Tempocolba</option>
+                <option value="Vigicolba">Vigicolba</option>
               </select>
             </div>
           </div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={fG}>
               <label style={lS}>Modalidad</label>
-              <select style={form.tipoProceso?iS:iSdis} value={form.subtipoProceso} onChange={e=>set('subtipoProceso',e.target.value)} disabled={!form.tipoProceso}>
+              <select
+                style={form.tipoProceso ? iS : iSdis}
+                value={form.subtipoProceso}
+                onChange={(e) => set('subtipoProceso', e.target.value)}
+                disabled={!form.tipoProceso}
+              >
                 <option value="">— Seleccione —</option>
-                {subtipos.map(s=><option key={s} value={s}>{s}</option>)}
+                {subtipos.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
               </select>
             </div>
+
             <div style={fG}>
               <label style={lS}>* Ciudad</label>
-              <select style={iS} value={form.ciudad} onChange={e=>set('ciudad',e.target.value)}>
+              <select
+                style={iS}
+                value={form.ciudad}
+                onChange={(e) => set('ciudad', e.target.value)}
+              >
                 <option value="">— Seleccione —</option>
-                {CIUDADES_CO.map(c=><option key={c} value={c}>{c}</option>)}
+                {CIUDADES_CO.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
-            <div style={fG}>
-              <label style={lS}>* Cliente</label>
-              <input style={iS} placeholder="Nombre del cliente o entidad contratante" value={form.entidad} onChange={e=>set('entidad',e.target.value)}/>
+          {origenSolicitud === 'Especializada' ? (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div style={fG}>
+                  <label style={lS}>* NIT</label>
+                  <input
+                    style={iS}
+                    placeholder="Ej. 900123456-7"
+                    value={form.nitContacto}
+                    onChange={(e) => set('nitContacto', e.target.value)}
+                  />
+                </div>
+
+                <div style={fG}>
+                  <label style={lS}>* Cliente</label>
+                  <input
+                    style={iS}
+                    placeholder="Nombre del cliente o entidad contratante"
+                    value={form.entidad}
+                    onChange={(e) => set('entidad', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div style={fG}>
+                  <label style={lS}>Dirección</label>
+                  <input
+                    style={iS}
+                    placeholder="Dirección de contacto"
+                    value={form.direccionContacto}
+                    onChange={(e) => set('direccionContacto', e.target.value)}
+                  />
+                </div>
+
+                <div style={fG}>
+                  <label style={lS}>* Correo</label>
+                  <input
+                    type="email"
+                    style={iS}
+                    placeholder="correo@empresa.com"
+                    value={form.correoContacto}
+                    onChange={(e) => set('correoContacto', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div style={fG}>
+                  <label style={lS}>* Teléfono</label>
+                  <input
+                    style={iS}
+                    placeholder="Teléfono o celular"
+                    value={form.telefonoContacto}
+                    onChange={(e) => set('telefonoContacto', e.target.value)}
+                  />
+                </div>
+
+                <div style={fG}>
+                  <label style={lS}>* Persona contacto</label>
+                  <input
+                    style={iS}
+                    placeholder="Nombre de la persona contacto"
+                    value={form.personaContacto}
+                    onChange={(e) => set('personaContacto', e.target.value)}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div style={fG}>
+                <label style={lS}>* Cliente</label>
+                <input
+                  style={iS}
+                  placeholder="Nombre del cliente o entidad contratante"
+                  value={form.entidad}
+                  onChange={(e) => set('entidad', e.target.value)}
+                />
+              </div>
+
+              <div />
             </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={fG}>
               <label style={lS}>* No. proceso</label>
-              <input style={iS} placeholder="Ej. MC-007-2026" value={form.codigoProceso} onChange={e=>set('codigoProceso',e.target.value)}/>
+              <input
+                style={iS}
+                placeholder="Ej. MC-007-2026"
+                value={form.codigoProceso}
+                onChange={(e) => set('codigoProceso', e.target.value)}
+              />
+            </div>
+
+            <div style={fG}>
+              <label style={lS}>Fecha cierre</label>
+              <input
+                type="date"
+                style={iS}
+                value={form.fechaCierre}
+                onChange={(e) => set('fechaCierre', e.target.value)}
+              />
             </div>
           </div>
 
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={fG}>
               <label style={lS}>Presupuesto</label>
-              <input style={iS} placeholder="Ej. 150000000" type="text" value={form.valor} onChange={e=>set('valor',e.target.value.replace(/[^0-9]/g,''))}/>
+              <input
+                style={iS}
+                placeholder="Ej. 150000000"
+                type="text"
+                value={form.valor}
+                onChange={(e) => set('valor', e.target.value.replace(/[^0-9]/g, ''))}
+              />
             </div>
+
             <div style={fG}>
               <label style={lS}>Plataforma</label>
-              <input style={iS} placeholder="Ej. SECOP II, Portal propio…" value={form.plataforma} onChange={e=>set('plataforma',e.target.value)}/>
+              <input
+                style={iS}
+                placeholder="Ej. SECOP II, Portal propio…"
+                value={form.plataforma}
+                onChange={(e) => set('plataforma', e.target.value)}
+              />
             </div>
           </div>
 
           <div style={fG}>
             <label style={lS}>* Descripción</label>
-            <textarea style={{...iS,height:80,padding:'8px 12px',resize:'vertical' as const,lineHeight:1.5}} placeholder="Descripción del objeto del contrato o proceso…" value={form.objeto} onChange={e=>set('objeto',e.target.value)}/>
-          </div>
-
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
-            <div style={fG}>
-              <label style={lS}>Fecha cierre</label>
-              <input type="date" style={iS} value={form.fechaCierre} onChange={e=>set('fechaCierre',e.target.value)}/>
-            </div>
-            <div/>
+            <textarea
+              style={{
+                ...iS,
+                height: 80,
+                padding: '8px 12px',
+                resize: 'vertical' as const,
+                lineHeight: 1.5,
+              }}
+              placeholder="Descripción del objeto del contrato o proceso…"
+              value={form.objeto}
+              onChange={(e) => set('objeto', e.target.value)}
+            />
           </div>
         </div>
-
         {/* FOOTER — centrado igual que la imagen */}
         <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,padding:'16px 28px',borderTop:'1px solid #f1f5f9',background:'white',flexShrink:0}}>
           <button onClick={handleGuardar} disabled={guardando} style={{height:38,padding:'0 32px',borderRadius:6,background:guardando?'#6b93c4':'#2563eb',color:'white',border:'none',fontSize:13,fontWeight:600,fontFamily:'var(--font)',cursor:guardando?'not-allowed':'pointer'}}>
@@ -1938,8 +2923,8 @@ function ModalCrearSolicitud({sesion,onClose,onCreada}:{sesion:Sesion;onClose:()
 /* ── Config por variante ── */
 type VarianteSolicitudes = 'COMERCIAL' | 'ESPECIALIZADA' | 'TODAS' | 'RECHAZADA';
 const VARIANTE_CONFIG:Record<VarianteSolicitudes,{titulo:string;emptyMsg:string}> = {
-  COMERCIAL:     {titulo:'Solicitudes abiertas — Comercial',   emptyMsg:'No hay solicitudes comerciales abiertas. Gestiona un proceso desde Búsqueda de procesos.'},
-  ESPECIALIZADA: {titulo:'Solicitudes abiertas — Especializados', emptyMsg:'No hay solicitudes especializadas abiertas.'},
+  COMERCIAL:     {titulo:'Solicitudes Comerciales',   emptyMsg:'No hay solicitudes comerciales abiertas. Gestiona un proceso desde Búsqueda de procesos.'},
+  ESPECIALIZADA: {titulo:'Solicitudes Especializados', emptyMsg:'No hay solicitudes especializadas abiertas.'},
   TODAS:         {titulo:'Solicitudes abiertas',               emptyMsg:'No hay solicitudes abiertas. Gestiona un proceso desde Búsqueda de procesos.'},
   RECHAZADA:     {titulo:'Solicitudes rechazadas',              emptyMsg:'No hay solicitudes rechazadas.'},
 };
@@ -1948,31 +2933,1046 @@ const VARIANTE_CONFIG:Record<VarianteSolicitudes,{titulo:string;emptyMsg:string}
    ESPECIALIZADA = no tiene codigoProceso (creada manualmente)
    Se reemplaza fácilmente cuando se agregue s.origenSolicitud al modelo */
 function matchVariante(s: Solicitud, variante: VarianteSolicitudes): boolean {
-  const estado = (s.estadoSolicitud || '').toLowerCase();
-  const fuente = (s.fuente || '').toLowerCase();
-  const plataforma = (s.plataforma || '').toLowerCase();
+  const estado = String(s.estadoSolicitud ?? '').toLowerCase();
+  const origen = String(s.origenSolicitud ?? 'Comercial').toLowerCase();
 
-  if (variante === 'TODAS') return true;
+  if (variante === 'TODAS') {
+    return true;
+  }
 
-  if (variante === 'RECHAZADA') {
+  if (variante === 'RECHAZADA' || variante === 'RECHAZADAS') {
     return estado.includes('rechazad');
   }
 
-  const esManual =
-    fuente.includes('manual') ||
-    plataforma.includes('manual');
+  if (variante === 'ELIMINADA' || variante === 'ELIMINADAS') {
+    return true;
+  }
 
   if (variante === 'COMERCIAL') {
-    return !esManual;
+    return origen === 'comercial';
   }
 
   if (variante === 'ESPECIALIZADA') {
-    return esManual;
+    return origen === 'especializada';
   }
 
   return true;
 }
 
+// ═══════════════════════════════════════════════════════════
+// STEPPER DE FASES
+// ═══════════════════════════════════════════════════════════
+const FASES_SOL = [
+  { label: 'Selección\nde proceso' },
+  { label: 'En revisión\ncomercial' },
+  { label: 'Asignada' },
+  { label: 'En observación' },
+  { label: 'En proceso' },
+  { label: 'En evaluación' },
+  { label: 'Cerrada' },
+];
+
+function getFaseIdx(estado: string): number {
+  const e = (estado || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if (e.includes('seleccion de proceso') || e === '') return 0;
+  if (e.includes('revision') || e.includes('revisi')) return 1;
+  if (e.includes('asignad')) return 2;
+  if (e.includes('observaci')) return 3;
+  if (e.includes('proceso') || e.includes('gesti')) return 4;
+  if (e.includes('evaluac')) return 5;
+  if (e.includes('cerrad') || e.includes('terminad') || e.includes('liquid')) return 6;
+  return 0;
+}
+
+function StepperSolicitud({ estadoSolicitud }: { estadoSolicitud: string }) {
+  const actual = getFaseIdx(estadoSolicitud);
+
+  const FASES_ICONS = [
+    // Selección de proceso
+    <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:16,height:16}}><path d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>,
+    // En revisión comercial
+    <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:16,height:16}}><path d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>,
+    // Asignada
+    <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:16,height:16}}><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"/></svg>,
+    // En observación
+    <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:16,height:16}}><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>,
+    // En proceso
+    <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:16,height:16}}><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="10"/></svg>,
+    // En evaluación
+    <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:16,height:16}}><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>,
+    // Cerrada
+    <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:16,height:16}}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
+  ];
+
+  return (
+    <div style={{display:'flex',alignItems:'center',padding:'12px 0 4px',overflowX:'auto'}}>
+      {FASES_SOL.map((fase, i) => {
+        const done = i < actual;
+        const active = i === actual;
+        return (
+          <React.Fragment key={i}>
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',minWidth:72,flex:1}}>
+              <div style={{
+                width:38,height:38,borderRadius:'50%',
+                background: done ? '#1e5799' : active ? '#1e5799' : '#f1f5f9',
+                border: active ? '2.5px solid #1e5799' : done ? 'none' : '1.5px solid #e2e8f0',
+                display:'flex',alignItems:'center',justifyContent:'center',
+                flexShrink:0,
+                color: done || active ? 'white' : '#94a3b8',
+                boxShadow: active ? '0 0 0 4px rgba(30,87,153,0.1)' : 'none',
+                transition:'all .2s',
+              }}>
+                {done
+                  ? <svg fill="none" stroke="white" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:15,height:15}}><path d="M20 6L9 17l-5-5"/></svg>
+                  : FASES_ICONS[i]
+                }
+              </div>
+              <div style={{
+                fontSize:10.5,
+                fontWeight: active ? 700 : 400,
+                marginTop:6,
+                color: active ? '#1e5799' : done ? '#334155' : '#94a3b8',
+                textAlign:'center' as const,
+                whiteSpace:'pre' as const,
+                lineHeight:1.3,
+                fontFamily:'var(--font)',
+              }}>{fase.label}</div>
+            </div>
+            {i < FASES_SOL.length - 1 && (
+              <div style={{
+                height:2,flex:1,maxWidth:36,flexShrink:0,marginBottom:22,
+                background: i < actual ? '#1e5799' : '#e2e8f0',
+                borderRadius:2,
+              }}/>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILA EXPANDIDA INLINE
+// ═══════════════════════════════════════════════════════════
+function FilaDetalle({
+  sol, sesion, variante, onClose, onGuardado, colSpan,
+}: {
+  sol: Solicitud; sesion: Sesion; variante: string;
+  onClose: () => void; onGuardado: (u: Solicitud) => void; colSpan: number;
+}) {
+  const [usuarios, setUsuarios] = React.useState<Array<{id:number;usuario:string;cargo:string;entidadGrupo:string;rol:string;estado:string}>>([]);
+  const [responsable, setResponsable] = React.useState('');
+  const [asignando, setAsignando] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [ok, setOk] = React.useState('');
+  const [verDetalleProceso, setVerDetalleProceso] = React.useState(false);
+
+  const F = 'var(--font)';
+  const FC = '#334155';
+  const FC_LABEL = '#94a3b8';
+  const FC_DARK = '#0f172a';
+  const lbl: React.CSSProperties = { fontSize: 9, fontWeight: 700, color: FC_LABEL, letterSpacing: '0.1em', textTransform: 'uppercase' as const, fontFamily: F, marginBottom: 3 };
+  const txt: React.CSSProperties = { fontSize: 12.5, color: FC, fontFamily: F, lineHeight: 1.5 };
+
+  const asignaciones: Array<Record<string, unknown>> = Array.isArray(sol.asignaciones) ? sol.asignaciones as Array<Record<string, unknown>> : [];
+  const pc = sol.perfil ? perfilColor(sol.perfil) : null;
+  const portal = portalColorModal(sol.aliasFuente || '', sol.fuente || '', sol.fuente || '');
+  const ebc = estadoSolicitudColor(sol.estadoSolicitud || '');
+  const modalidadLabel = MMAP_MODALIDAD[sol.modalidad] ?? sol.modalidad ?? '—';
+
+  const fmtFH = (r: string | null) => {
+    if (!r) return '—';
+    const d = new Date(r);
+    return isNaN(d.getTime()) ? r : d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  };
+  const fmtV = (v: number | null) => {
+    if (v == null || isNaN(v) || v === 0) return '—';
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
+  };
+
+  React.useEffect(() => {
+    fetch('/api/users').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) {
+        const todos = data.filter((u: any) => u.estado === 'Activo');
+        const filtered = variante === 'COMERCIAL' ? todos.filter((u: any) => u.proceso === 'Comercial')
+          : variante === 'ESPECIALIZADA' ? todos.filter((u: any) => u.proceso && u.proceso !== 'Comercial')
+          : todos;
+        setUsuarios(filtered);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const asignar = async () => {
+    if (!responsable) { setError('Selecciona un responsable.'); return; }
+    setAsignando(true); setError(''); setOk('');
+    try {
+      const u = usuarios.find(u => u.usuario === responsable);
+      const ahora = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const fechaStr = `${ahora.getFullYear()}-${pad(ahora.getMonth()+1)}-${pad(ahora.getDate())} ${pad(ahora.getHours())}:${pad(ahora.getMinutes())}:${pad(ahora.getSeconds())}`;
+      const numAsig = asignaciones.length + 1;
+      const nueva = {
+        idAsignacion: `ASG-${String(numAsig).padStart(2,'0')}`,
+        solicitudId: sol.id, solicitudNum: sol.id,
+        analistaAsignado: u?.usuario || responsable, analistaCargo: u?.cargo || '',
+        analistaEntidad: u?.entidadGrupo || '', asignadoPor: sesion.usuario || '',
+        asignadoPorCargo: sesion.cargo || '', fechaAsignacion: fechaStr,
+        estadoAsignacion: 'Pendiente', estadoBandeja: 'pendiente',
+        entidad: sol.entidad || '', codigoProceso: sol.codigoProceso || '',
+        objeto: sol.objeto || '', valor: sol.valor || null,
+        modalidad: sol.modalidad || '', ciudad: sol.ciudad || sol.departamento || '',
+        perfil: sol.perfil || '', fechaVencimiento: sol.fechaVencimiento || null, observacion: '',
+      };
+      const nuevasAsig = [...asignaciones, nueva];
+      const res = await fetch('/api/solicitudes', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: sol.id, estadoSolicitud: 'Asignada', asignaciones: nuevasAsig }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) { setError(data.error ?? 'Error al asignar.'); return; }
+      setOk(`Asignado a ${u?.usuario || responsable}`);
+      const updated: Solicitud = { ...sol, ...data.solicitud, estadoSolicitud: 'Asignada', asignaciones: nuevasAsig };
+      onGuardado(updated);
+      setTimeout(() => onClose(), 1200);
+    } catch { setError('No se pudo conectar.'); }
+    finally { setAsignando(false); }
+  };
+
+  return (
+    <>
+      {verDetalleProceso && <ModalDetallesProceso sol={sol} onClose={() => setVerDetalleProceso(false)} />}
+      <tr style={{ background: '#f8fafc' }}>
+        <td colSpan={colSpan} style={{ padding: 0, borderBottom: '2px solid #1e5799' }}>
+          <div style={{ borderLeft: '3px solid #1e5799', margin: '0 4px', padding: '0 20px 20px' }}>
+
+            {/* ── Stepper ── */}
+            <StepperSolicitud estadoSolicitud={sol.estadoSolicitud || ''} />
+
+            {/* ── Cuerpo en dos columnas ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20, marginTop: 12 }}>
+
+              {/* Columna izquierda */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: '#1e5799', color: 'white', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: F }}>{portal.short}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: FC_DARK, fontFamily: F }}>{sol.entidad || '—'}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' as const }}>
+                      {sol.codigoProceso && <span style={{ fontSize: 11, color: '#64748b', background: '#f8fafc', border: '1px solid #e8edf2', padding: '1px 8px', borderRadius: 5, fontFamily: 'monospace' }}>{sol.codigoProceso}</span>}
+                      {pc && <span style={{ fontSize: 11, color: pc.color, background: pc.bg, padding: '1px 8px', borderRadius: 999, fontWeight: 600, fontFamily: F }}>{pc.label}</span>}
+                      <span style={{ fontSize: 10.5, color: FC_LABEL, fontFamily: F }}>Ficha #{sol.id}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button onClick={() => setVerDetalleProceso(true)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 12px', borderRadius: 7, border: '1.5px solid #1e5799', background: 'white', color: '#1e5799', fontSize: 11.5, fontWeight: 600, fontFamily: F, cursor: 'pointer' }}>
+                      <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ width: 13, height: 13 }}><path d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V8.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0014.586 2H5a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                      Ver datos del proceso
+                    </button>
+                    <button onClick={onClose}
+                      style={{ width: 28, height: 28, borderRadius: 7, border: '1.5px solid #e2e8f0', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}
+                      onMouseOver={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fef2f2'; (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; }}
+                      onMouseOut={e => { (e.currentTarget as HTMLButtonElement).style.background = 'white'; (e.currentTarget as HTMLButtonElement).style.color = '#94a3b8'; }}>
+                      <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ width: 12, height: 12 }}><path d="M18 6L6 18M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Info general */}
+                <div style={{ background: 'white', border: '1px solid #e8edf2', borderRadius: 10, padding: '14px 16px' }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: '#1e5799', textTransform: 'uppercase' as const, letterSpacing: '0.07em', marginBottom: 10, fontFamily: F }}>Información del proceso</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px' }}>
+                    {[
+                      { label: 'Entidad', value: sol.entidad || '—' },
+                      { label: 'Número de proceso', value: <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{sol.codigoProceso || '—'}</span> },
+                      { label: 'Modalidad', value: modalidadLabel },
+                      { label: 'Fuente', value: sol.fuente || '—' },
+                      { label: 'Registrado por', value: `${sol.usuarioRegistro || '—'}${sol.cargoRegistro ? ` · ${sol.cargoRegistro}` : ''}` },
+                      { label: 'Fecha registro', value: fmtFH(sol.createdAt) },
+                    ].map(({ label, value }, i) => (
+                      <div key={i} style={{ paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
+                        <div style={lbl}>{label}</div>
+                        <div style={txt}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Asignar responsable */}
+                <div style={{ background: 'white', border: '1px solid #e8edf2', borderRadius: 10, padding: '14px 16px' }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: '#1e5799', textTransform: 'uppercase' as const, letterSpacing: '0.07em', marginBottom: 10, fontFamily: F }}>Asignar responsable</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <select value={responsable} onChange={e => setResponsable(e.target.value)}
+                      style={{ flex: 1, height: 36, border: '1.5px solid #e2e8f0', borderRadius: 8, padding: '0 10px', fontSize: 12.5, fontFamily: F, color: responsable ? FC_DARK : '#94a3b8', background: 'white', outline: 'none' }}>
+                      <option value="">— Seleccione un responsable —</option>
+                      {usuarios.map(u => <option key={u.id} value={u.usuario}>{u.usuario} · {u.cargo} · {u.entidadGrupo}</option>)}
+                    </select>
+                    <button onClick={asignar} disabled={asignando || !responsable}
+                      style={{ height: 36, padding: '0 16px', borderRadius: 8, background: asignando || !responsable ? '#94a3b8' : '#1e5799', color: 'white', border: 'none', fontSize: 12.5, fontWeight: 600, fontFamily: F, cursor: asignando || !responsable ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' as const, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ width: 13, height: 13 }}><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" /></svg>
+                      {asignando ? 'Asignando…' : 'Asignar solicitud'}
+                    </button>
+                  </div>
+                  {error && <div style={{ fontSize: 12, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '6px 10px', marginTop: 8, fontFamily: F }}>⚠️ {error}</div>}
+                  {ok && <div style={{ fontSize: 12, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: '6px 10px', marginTop: 8, fontFamily: F }}>✓ {ok}</div>}
+                </div>
+
+                {/* Historial asignaciones */}
+                {asignaciones.length > 0 && (
+                  <div style={{ background: 'white', border: '1px solid #e8edf2', borderRadius: 10, padding: '14px 16px' }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: '#1e5799', textTransform: 'uppercase' as const, letterSpacing: '0.07em', marginBottom: 10, fontFamily: F }}>Historial de asignaciones ({asignaciones.length})</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      {asignaciones.map((a, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < asignaciones.length - 1 ? '1px solid #f8fafc' : 'none' }}>
+                          <div style={{ width: 28, height: 28, borderRadius: 7, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <svg fill="none" stroke="#64748b" strokeWidth={2} viewBox="0 0 24 24" style={{ width: 12, height: 12 }}><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" /></svg>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: FC_DARK, fontFamily: F }}>{String(a.analistaAsignado || '—')}</div>
+                            <div style={{ fontSize: 10.5, color: FC_LABEL, fontFamily: F }}>{String(a.analistaCargo || '')} · {String(a.fechaAsignacion || '').slice(0, 10)}</div>
+                          </div>
+                          <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: a.estadoAsignacion === 'Pendiente' ? '#fef3c7' : a.estadoAsignacion === 'Terminada' ? '#f0fdf4' : '#f1f5f9', color: a.estadoAsignacion === 'Pendiente' ? '#92400e' : a.estadoAsignacion === 'Terminada' ? '#15803d' : '#475569', fontFamily: F }}>{String(a.estadoAsignacion || '—')}</span>
+                          <div style={{ fontSize: 10, color: FC_LABEL, fontFamily: 'monospace' }}>{String(a.idAsignacion || '')}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Columna derecha */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+                {/* Presupuesto */}
+                {sol.valor != null && sol.valor !== 0 && (
+                  <div style={{ background: 'white', border: '1px solid #e8edf2', borderRadius: 10, padding: '14px 16px' }}>
+                    <div style={lbl}>Presupuesto oficial</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: FC_DARK, letterSpacing: '-0.02em', fontFamily: F, marginTop: 4 }}>{fmtV(sol.valor)}</div>
+                  </div>
+                )}
+
+                {/* Datos clave */}
+                <div style={{ background: 'white', border: '1px solid #e8edf2', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div>
+                    <div style={lbl}>Número del proceso</div>
+                    <div style={{ ...txt, fontFamily: 'monospace', fontSize: 12 }}>{sol.codigoProceso || '—'}</div>
+                  </div>
+                  <div>
+                    <div style={lbl}>Modalidad</div>
+                    <div style={txt}>{modalidadLabel}</div>
+                  </div>
+                  <div>
+                    <div style={lbl}>Estado solicitud</div>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: ebc.color, background: ebc.bg, padding: '2px 9px', borderRadius: 999, fontFamily: F }}>{sol.estadoSolicitud || '—'}</span>
+                  </div>
+                  {sol.departamento && (
+                    <div>
+                      <div style={lbl}>Localización</div>
+                      <div style={txt}>{sol.departamento}</div>
+                    </div>
+                  )}
+                  {sol.fechaVencimiento && (
+                    <div>
+                      <div style={lbl}>Vencimiento</div>
+                      <div style={{ ...txt, fontSize: 12 }}>{fmtFH(sol.fechaVencimiento)}</div>
+                    </div>
+                  )}
+                  {sol.sqrNumero && (
+                    <div>
+                      <div style={lbl}>SQR</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', fontFamily: 'monospace', marginTop: 2 }}>{sol.sqrNumero}</div>
+                      {sol.fechaAperturaSqr && <div style={{ fontSize: 10.5, color: FC_LABEL, fontFamily: F, marginTop: 2 }}>Apertura: {fmtFH(sol.fechaAperturaSqr)}</div>}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ fontSize: 10, color: FC_LABEL, textAlign: 'center' as const, fontFamily: F, padding: '4px 0' }}>
+                  Solicitud #{sol.id} · {fmtFH(sol.createdAt)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </>
+  );
+}
+
+function VistFicha({sol,sesion,variante,onVolver,onGuardado}:{sol:Solicitud;sesion:Sesion;variante:string;onVolver:()=>void;onGuardado:(u:Solicitud)=>void}){
+  const [usuarios,setUsuarios]=React.useState<Array<{id:number;usuario:string;cargo:string;entidadGrupo:string;rol:string;estado:string}>>([]);
+  const [responsable,setResponsable]=React.useState('');
+  const [asignando,setAsignando]=React.useState(false);
+  const [error,setError]=React.useState('');
+  const [tabActiva,setTabActiva]=React.useState<'resumen'|'requisitos'|'cronograma'|'documentacion'|'adendas'>('resumen');
+  const [docVista,setDocVista]=React.useState<'grid'|'list'>('list');
+  const [adendas,setAdendas]=React.useState<Array<{id:number;nombre:string;urlDocumento:string|null;fechaDetectado:string}>>([]);
+  const [cargandoAdendas,setCargandoAdendas]=React.useState(false);
+  const F='var(--font)';
+  const FC='#334155';const FC_LABEL='#6b7280';const FC_DARK='#0f172a';
+  const asignaciones:Array<Record<string,unknown>>=Array.isArray(sol.asignaciones)?sol.asignaciones as Array<Record<string,unknown>>:[];
+  const pc=sol.perfil?perfilColor(sol.perfil):null;
+  const fmtFH=(r:string|null)=>{if(!r)return'—';const d=new Date(r);return isNaN(d.getTime())?r:d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});};
+  const fmtV=(v:number|null)=>{if(v==null||isNaN(v)||v===0)return null;return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(v);};
+  const docArr=Array.isArray(sol.docData)?sol.docData as any[]:[];
+  const procDataEntries=Object.entries(sol.procData||{}).filter(([,v])=>(v as any)?.fechaI||(v as any)?.obs);
+  const urlFuente=sol.linkSecop||sol.linkDetalle||sol.linkSecopReg||'';
+  const ebFuente=estadoBadgeColor(sol.estadoFuente||'');
+  const modalidadDisplay=(()=>{const m=sol.modalidad?.trim();if(!m||m==='—')return'—';return MMAP_MODALIDAD[m]??m;})();
+  const fuenteDisplay=sol.fuente?sol.fuente.charAt(0).toUpperCase()+sol.fuente.slice(1):'—';
+  const esEspecializada=variante==='ESPECIALIZADA';
+  const solE=sol as any;
+
+  const getDocExt=(url:string,nombre?:string)=>{
+    const s=(url||'').toLowerCase();const n=(nombre||'').toLowerCase();
+    const isXls=s.indexOf('.xlsx')>=0||s.indexOf('.xls')>=0||n.indexOf('.xlsx')>=0||n.indexOf('.xls')>=0||n.indexOf('xlsx')>=0||n.indexOf('excel')>=0||n.indexOf('hoja')>=0;
+    const isDoc=s.indexOf('.docx')>=0||s.indexOf('.doc')>=0||n.indexOf('.docx')>=0||n.indexOf('.doc')>=0||n.indexOf('word')>=0;
+    const isZip=s.indexOf('.zip')>=0||s.indexOf('.rar')>=0||n.indexOf('.zip')>=0||n.indexOf('.rar')>=0;
+    if(isXls)return{bg:'#f0fdf4',color:'#15803d',label:'XLS'};
+    if(isDoc)return{bg:'#eff6ff',color:'#1d4ed8',label:'DOC'};
+    if(isZip)return{bg:'#faf5ff',color:'#7e22ce',label:'ZIP'};
+    return{bg:'#fff1f2',color:'#be123c',label:'PDF'};
+  };
+
+  React.useEffect(()=>{
+    fetch('/api/users').then(r=>r.json()).then(data=>{
+      if(Array.isArray(data)){
+        const todos=data.filter((u:any)=>u.estado==='Activo');
+        const filtered=variante==='COMERCIAL'?todos.filter((u:any)=>u.proceso==='Comercial'):variante==='ESPECIALIZADA'?todos.filter((u:any)=>u.proceso&&u.proceso!=='Comercial'):todos;
+        setUsuarios(filtered);
+      }
+    }).catch(()=>{});
+  },[]);
+
+  React.useEffect(()=>{
+    if(!sol.procesoId)return;
+    setCargandoAdendas(true);
+    fetch(`/api/procesos/${sol.procesoId}/documentos`)
+      .then(r=>r.json())
+      .then(data=>{
+        if(data.ok&&Array.isArray(data.documentos)){
+          const urlsIniciales=new Set(docArr.map((d:any)=>String(d.ruta||d.url||d.link||'').toLowerCase()).filter(Boolean));
+          const nombresIniciales=new Set(docArr.map((d:any)=>String(d.nombre||d.titulo||'').toLowerCase()).filter(Boolean));
+          const nuevos=data.documentos.filter((d:any)=>{
+            const url=String(d.urlDocumento||'').toLowerCase().trim();
+            const nombre=String(d.nombre||'').toLowerCase().trim();
+            return!(url&&urlsIniciales.has(url))&&!(nombre&&nombresIniciales.has(nombre));
+          });
+          setAdendas(nuevos);
+        }
+      })
+      .catch(()=>{})
+      .finally(()=>setCargandoAdendas(false));
+  },[sol.procesoId]);
+
+  const asignar=async()=>{
+    if(!responsable){setError('Selecciona un responsable.');return;}
+    setAsignando(true);setError('');
+    try{
+      const u=usuarios.find(u=>u.usuario===responsable);
+      const ahora=new Date();const pad=(n:number)=>String(n).padStart(2,'0');
+      const fechaStr=`${ahora.getFullYear()}-${pad(ahora.getMonth()+1)}-${pad(ahora.getDate())} ${pad(ahora.getHours())}:${pad(ahora.getMinutes())}:${pad(ahora.getSeconds())}`;
+      const numAsig=asignaciones.length+1;
+      const nueva={idAsignacion:`ASG-${String(numAsig).padStart(2,'0')}`,solicitudId:sol.id,solicitudNum:sol.id,analistaAsignado:u?.usuario||responsable,analistaCargo:u?.cargo||'',analistaEntidad:u?.entidadGrupo||'',asignadoPor:sesion.usuario||'',asignadoPorCargo:sesion.cargo||'',fechaAsignacion:fechaStr,estadoAsignacion:'Pendiente',estadoBandeja:'pendiente',entidad:sol.entidad||'',codigoProceso:sol.codigoProceso||'',objeto:sol.objeto||'',valor:sol.valor||null,modalidad:sol.modalidad||'',ciudad:sol.ciudad||sol.departamento||'',perfil:sol.perfil||'',fechaVencimiento:sol.fechaVencimiento||null,observacion:''};
+      const nuevasAsig=[...asignaciones,nueva];
+      const res=await fetch('/api/solicitudes',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:sol.id,estadoSolicitud:'Asignada',asignaciones:nuevasAsig})});
+      const data=await res.json();
+      if(!res.ok||!data.ok){setError(data.error??'Error al asignar.');return;}
+      onGuardado({...sol,...data.solicitud,estadoSolicitud:'Asignada',asignaciones:nuevasAsig});
+    }catch{setError('No se pudo conectar.');}
+    finally{setAsignando(false);}
+  };
+
+  const MetaItem=({icon,label,value,badge}:{icon:React.ReactNode;label:string;value?:string;badge?:React.ReactNode})=>(
+    <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,fontFamily:F,color:FC,flexShrink:0,minWidth:0}}>
+      <span style={{color:'#94a3b8',display:'flex',alignItems:'center'}}>{icon}</span>
+      <span style={{fontWeight:600,color:FC_DARK}}>{label}:</span>
+      {badge?badge:<span style={{color:FC}}>{value}</span>}
+    </div>
+  );
+
+  const sep=<div style={{width:1,height:14,background:'#cbd5e1',flexShrink:0}}/>;
+
+  const TABS:[string,typeof tabActiva][]=[
+    ['Resumen','resumen'],
+    ['Requisitos','requisitos'],
+    ['Cronograma','cronograma'],
+    ['Documentación','documentacion'],
+    ['Adendas','adendas'],
+  ];
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',background:'#f8fafc'}}>
+
+      {/* BARRA 1 */}
+      <div style={{background:'white',borderBottom:'1px solid #e2e8f0',padding:'4px 24px',flexShrink:0,overflow:'hidden'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'nowrap' as const,overflow:'hidden'}}>
+          {sol.estadoFuente&&<><MetaItem icon={<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>} label="Estado" badge={<span style={{display:'inline-flex',alignItems:'center',fontSize:10,fontWeight:600,color:ebFuente.color,background:ebFuente.bg,padding:'1px 7px',borderRadius:999,fontFamily:F}}>{sol.estadoFuente}</span>}/>{sep}</>}
+          {fmtV(sol.valor)&&<><MetaItem icon={<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>} label="Presupuesto" badge={<span style={{fontWeight:600,color:'#475569',fontFamily:F,fontSize:10}}>{fmtV(sol.valor)}</span>}/>{sep}</>}
+          {pc&&<><MetaItem icon={<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5"/></svg>} label="Perfil" badge={<span style={{display:'inline-flex',alignItems:'center',fontSize:10,fontWeight:600,color:'white',background:pc.color,padding:'1px 7px',borderRadius:999,fontFamily:F}}>{pc.label}</span>}/>{sep}</>}
+          {sol.codigoProceso&&<><MetaItem icon={<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><path d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>} label="No. Proceso" badge={<span style={{fontWeight:600,color:'#475569',fontFamily:'monospace',fontSize:10}}>{sol.codigoProceso}</span>}/>{sep}</>}
+          {sol.fechaVencimiento&&<MetaItem icon={<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>} label="Vencimiento" badge={<span style={{fontWeight:600,color:'#475569',fontFamily:F,fontSize:10}}>{fmtFH(sol.fechaVencimiento)}</span>}/>}
+        </div>
+      </div>
+
+      {/* BARRA 2 */}
+      <div style={{background:'white',borderBottom:'1px solid #e2e8f0',padding:'0 24px',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:0}}>
+          <button onClick={onVolver}
+            style={{display:'inline-flex',alignItems:'center',gap:5,height:44,padding:'0 14px 0 0',border:'none',borderRight:'1px solid #e2e8f0',background:'transparent',color:'#475569',fontSize:12,fontWeight:500,fontFamily:F,cursor:'pointer',flexShrink:0,marginRight:16}}
+            onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.color='#1e5799';}}
+            onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.color='#475569';}}>
+            <svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+            Volver
+          </button>
+          {TABS.map(([label,key])=>(
+            <button key={key} onClick={()=>setTabActiva(key as typeof tabActiva)}
+              style={{height:44,padding:'0 16px',border:'none',borderBottom:tabActiva===key?'2.5px solid #1e5799':'2.5px solid transparent',background:'transparent',color:tabActiva===key?'#1e5799':'#64748b',fontSize:13,fontWeight:tabActiva===key?700:400,fontFamily:F,cursor:'pointer',transition:'all .15s',display:'inline-flex',alignItems:'center',gap:6,flexShrink:0}}>
+              {label}
+              {key==='documentacion'&&docArr.length>0&&<span style={{fontSize:10,fontWeight:700,background:tabActiva===key?'#1e5799':'#e2e8f0',color:tabActiva===key?'white':'#64748b',padding:'1px 6px',borderRadius:999}}>{docArr.length}</span>}
+              {key==='cronograma'&&procDataEntries.length>0&&<span style={{fontSize:10,fontWeight:700,background:tabActiva===key?'#1e5799':'#e2e8f0',color:tabActiva===key?'white':'#64748b',padding:'1px 6px',borderRadius:999}}>{procDataEntries.length}</span>}
+              {key==='adendas'&&adendas.length>0&&<span style={{fontSize:10,fontWeight:700,background:tabActiva===key?'#1e5799':'#e2e8f0',color:tabActiva===key?'white':'#64748b',padding:'1px 6px',borderRadius:999}}>{adendas.length}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* STEPPER */}
+      <div style={{background:'white',borderBottom:'1px solid #e2e8f0',padding:'0 24px',flexShrink:0}}>
+        <StepperSolicitud estadoSolicitud={sol.estadoSolicitud||''}/>
+      </div>
+
+      {/* CUERPO */}
+      <div style={{flex:1,overflow:'hidden',display:'grid',gridTemplateColumns:'1fr 300px',gap:16,padding:'16px 24px'}}>
+
+        {/* Columna izquierda */}
+        <div style={{display:'flex',flexDirection:'column',gap:12,overflowY:'auto',paddingRight:2,scrollbarWidth:'thin' as const,scrollbarColor:'transparent transparent'}}
+          onMouseOver={e=>{(e.currentTarget as HTMLDivElement).style.scrollbarColor='#cbd5e1 transparent';}}
+          onMouseOut={e=>{(e.currentTarget as HTMLDivElement).style.scrollbarColor='transparent transparent';}}>
+
+          {/* TAB RESUMEN */}
+          {tabActiva==='resumen'&&<>
+            {sol.objeto&&(
+              <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'12px 14px',flexShrink:0,maxHeight:120,overflowY:'auto'}}>
+                <div style={{fontSize:11,fontWeight:700,color:'#1e5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',marginBottom:10,fontFamily:F}}>Descripción</div>
+                <p style={{margin:0,fontSize:11.5,color:'#334155',fontFamily:F,lineHeight:1.6,textAlign:'justify' as const}}>{sol.objeto.charAt(0).toUpperCase()+sol.objeto.slice(1)}</p>
+              </div>
+            )}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,flexShrink:0}}>
+
+              {/* Entidad contratante */}
+              <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'14px 16px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+                  <svg fill="none" stroke="#64748b" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14,flexShrink:0}}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z"/></svg>
+                  <span style={{fontSize:11,fontWeight:700,color:'#374151',fontFamily:F}}>Entidad contratante</span>
+                </div>
+                <div style={{display:'flex',flexDirection:'column' as const,gap:8}}>
+                  {esEspecializada&&solE.nitContacto&&<div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>NIT</div><div style={{fontSize:12.5,color:'#0f172a',fontFamily:'monospace'}}>{solE.nitContacto}</div></div>}
+                  <div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Organización</div><div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{sol.entidad||'—'}</div></div>
+                  {esEspecializada&&solE.direccionContacto&&<div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Dirección</div><div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{solE.direccionContacto}</div></div>}
+                  {sol.ciudad&&<div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Ciudad</div><div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{sol.ciudad}</div></div>}
+                  {!esEspecializada&&sol.departamento&&<div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Localización</div><div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{sol.departamento}</div></div>}
+                  {esEspecializada&&sol.departamento&&(()=>{
+                    const partes=(sol.departamento||'').split(';').map((s:string)=>s.trim()).filter(Boolean);
+                    const deptos=partes.map((p:string)=>p.split(':')[0].trim()).filter(Boolean).join(', ');
+                    const ciudad=partes.map((p:string)=>p.includes(':')?p.split(':').slice(1).join(':').trim():'').filter(Boolean).join(', ');
+                    return(<>
+                      <div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Departamento</div><div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{deptos||'—'}</div></div>
+                      {ciudad&&<div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Ciudad</div><div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{ciudad}</div></div>}
+                    </>);
+                  })()}
+                </div>
+              </div>
+
+              {/* Información del contrato */}
+              <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'14px 16px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+                  <svg fill="none" stroke="#64748b" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14,flexShrink:0}}><path d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  <span style={{fontSize:11,fontWeight:700,color:'#374151',fontFamily:F}}>Información del contrato</span>
+                </div>
+                <div style={{display:'flex',flexDirection:'column' as const,gap:8}}>
+                  <div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Modalidad</div><div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{modalidadDisplay}</div></div>
+                  <div>
+                    <div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Fuente</div>
+                    <div style={{display:'flex',alignItems:'center',gap:6}}>
+                      <div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{fuenteDisplay}</div>
+                      {urlFuente&&(<a href={urlFuente} target="_blank" rel="noopener noreferrer" title="Abrir en portal" style={{width:22,height:22,borderRadius:6,border:'1px solid #e2e8f0',background:'white',display:'inline-flex',alignItems:'center',justifyContent:'center',color:'#64748b',flexShrink:0,transition:'all .15s',textDecoration:'none'}} onMouseOver={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#1e5799';(e.currentTarget as HTMLAnchorElement).style.color='#1e5799';(e.currentTarget as HTMLAnchorElement).style.background='#eff6ff';}} onMouseOut={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#e2e8f0';(e.currentTarget as HTMLAnchorElement).style.color='#64748b';(e.currentTarget as HTMLAnchorElement).style.background='white';}}><svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>)}
+                    </div>
+                  </div>
+                  {esEspecializada&&solE.correoContacto&&<div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Correo</div><div style={{fontSize:12,color:'#0f172a',fontFamily:F}}>{solE.correoContacto}</div></div>}
+                  {esEspecializada&&solE.personaContacto&&<div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Persona contacto</div><div style={{fontSize:12,color:'#0f172a',fontFamily:F}}>{solE.personaContacto}</div></div>}
+                  {esEspecializada&&solE.telefonoContacto&&<div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Teléfono</div><div style={{fontSize:12,color:'#0f172a',fontFamily:F}}>{solE.telefonoContacto}</div></div>}
+                </div>
+              </div>
+
+              {/* Registro */}
+              <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'14px 16px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+                  <svg fill="none" stroke="#64748b" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14,flexShrink:0}}><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                  <span style={{fontSize:11,fontWeight:700,color:'#374151',fontFamily:F}}>Registro</span>
+                </div>
+                <div style={{display:'flex',flexDirection:'column' as const,gap:8}}>
+                  <div>
+                    <div style={{fontSize:10,color:'#94a3b8',fontFamily:F,marginBottom:2}}>Registrado por</div>
+                    <div style={{fontSize:12.5,fontWeight:600,color:'#0f172a',fontFamily:F}}>{sol.usuarioRegistro||'—'}</div>
+                    {sol.cargoRegistro&&<div style={{fontSize:11,color:'#64748b',fontFamily:F,marginTop:1}}>{sol.cargoRegistro}</div>}
+                  </div>
+                  <div><div style={{fontSize:10,color:'#94a3b8',fontFamily:F,marginBottom:2}}>Fecha de registro</div><div style={{fontSize:12,fontWeight:600,color:'#0f172a',fontFamily:F}}>{fmtFH(sol.createdAt)}</div></div>
+                  {sol.sqrNumero&&<div><div style={{fontSize:10,color:'#94a3b8',fontFamily:F,marginBottom:2}}>No. SQR</div><div style={{fontSize:12,fontWeight:600,color:'#475569',fontFamily:'monospace'}}>{sol.sqrNumero}</div></div>}
+                </div>
+              </div>
+
+            </div>
+          </>}
+
+          {/* TAB REQUISITOS */}
+          {tabActiva==='requisitos'&&(
+            <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'20px 24px',flexShrink:0}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#1e5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',marginBottom:16,fontFamily:F}}>Requisitos del proceso</div>
+              {sol.observacion
+                ?<div style={{fontSize:13,color:FC,fontFamily:F,lineHeight:1.7,whiteSpace:'pre-wrap' as const}}>{sol.observacion}</div>
+                :<div style={{textAlign:'center' as const,padding:'40px 0',color:'#94a3b8'}}>
+                  <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{width:32,height:32,margin:'0 auto 10px',display:'block',opacity:.4}}><path d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  <div style={{fontSize:13,fontFamily:F}}>Sin requisitos registrados</div>
+                </div>
+              }
+            </div>
+          )}
+
+          {/* TAB CRONOGRAMA */}
+          {tabActiva==='cronograma'&&(
+            <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'24px 28px',flexShrink:0}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#1e5799',textTransform:'uppercase' as const,letterSpacing:'0.08em',marginBottom:20,fontFamily:F}}>Cronograma de fechas</div>
+              {(sol.fechaPublicacion||sol.fechaVencimiento||procDataEntries.length>0)
+                ?<div style={{display:'flex',flexDirection:'column' as const}}>
+                  {sol.fechaPublicacion&&(<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:'1px solid #f1f5f9'}}><span style={{fontSize:11,color:'#374151',fontFamily:F}}>Fecha de publicación</span><span style={{fontSize:11,fontWeight:700,color:FC_DARK,fontFamily:F,whiteSpace:'nowrap' as const}}>{fmtFH(sol.fechaPublicacion)}</span></div>)}
+                  {sol.fechaVencimiento&&(<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:procDataEntries.length>0?'1px solid #f1f5f9':'none'}}><span style={{fontSize:11,color:'#374151',fontFamily:F}}>Fecha de vencimiento</span><span style={{fontSize:11,fontWeight:700,color:'#dc2626',fontFamily:F,whiteSpace:'nowrap' as const}}>{fmtFH(sol.fechaVencimiento)}</span></div>)}
+                  {procDataEntries.map(([k,v],i)=>{const vv=v as any;return(<div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:i<procDataEntries.length-1?'1px solid #f1f5f9':'none'}}><span style={{fontSize:11,color:'#374151',fontFamily:F,flex:1,paddingRight:24}}>{vv.obs||`Etapa ${i+1}`}</span><span style={{fontSize:11,fontWeight:700,color:FC_DARK,fontFamily:F,whiteSpace:'nowrap' as const,flexShrink:0}}>{vv.fechaI}{vv.fechaF&&vv.fechaF!==vv.fechaI?` → ${vv.fechaF}`:''}</span></div>);})}
+                </div>
+                :<div style={{textAlign:'center' as const,padding:'40px 0',color:'#94a3b8'}}>
+                  <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{width:32,height:32,margin:'0 auto 10px',display:'block',opacity:.4}}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                  <div style={{fontSize:13,fontFamily:F}}>Sin cronograma registrado</div>
+                </div>
+              }
+            </div>
+          )}
+
+          {/* TAB DOCUMENTACIÓN */}
+          {tabActiva==='documentacion'&&(
+            <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'16px 20px',flexShrink:0}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+                <div style={{fontSize:11,fontWeight:700,color:'#1e5799',textTransform:'uppercase' as const,letterSpacing:'0.08em',fontFamily:F}}>Documentos {docArr.length>0&&`(${docArr.length})`}</div>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  {docArr.some((d:any)=>String(d.ruta||d.url||d.link||''))&&(
+                    <button style={{display:'inline-flex',alignItems:'center',gap:5,height:28,padding:'0 12px',borderRadius:7,border:'1.5px solid #e2e8f0',background:'white',color:'#374151',fontSize:11.5,fontWeight:500,fontFamily:F,cursor:'pointer',transition:'all .15s'}}
+                      onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor='#1e5799';(e.currentTarget as HTMLButtonElement).style.color='#1e5799';}}
+                      onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor='#e2e8f0';(e.currentTarget as HTMLButtonElement).style.color='#374151';}}>
+                      <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      Descargar todo
+                    </button>
+                  )}
+                  <div style={{display:'flex',border:'1.5px solid #e2e8f0',borderRadius:7,overflow:'hidden'}}>
+                    {([{v:'grid'},{v:'list'}] as {v:'grid'|'list'}[]).map(({v})=>(
+                      <button key={v} onClick={()=>setDocVista(v)}
+                        style={{width:28,height:26,border:'none',background:docVista===v?'#1e5799':'white',color:docVista===v?'white':'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .15s'}}>
+                        {v==='grid'
+                          ?<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                          :<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                        }
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {docArr.length>0
+                ?docVista==='grid'
+                  ?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:10}}>
+                    {docArr.map((d:any,i:number)=>{
+                      const url=String(d.ruta||d.url||d.link||'');
+                      const ext=getDocExt(url,String(d.nombre||d.titulo||''));
+                      return(
+                        <a key={i} href={url||'#'} target="_blank" rel="noopener noreferrer"
+                          style={{display:'flex',flexDirection:'column' as const,alignItems:'center',gap:6,padding:'10px 6px',border:'1.5px solid #f1f5f9',borderRadius:10,textDecoration:'none',background:'white',transition:'all .15s'}}
+                          onMouseOver={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#1e5799';(e.currentTarget as HTMLAnchorElement).style.background='#f8fbff';}}
+                          onMouseOut={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#f1f5f9';(e.currentTarget as HTMLAnchorElement).style.background='white';}}>
+                          <div style={{position:'relative' as const,width:40,height:48}}>
+                            <div style={{width:40,height:48,borderRadius:'3px 10px 3px 3px',background:ext.bg,border:`1.5px solid ${ext.color}30`,display:'flex',alignItems:'flex-end',justifyContent:'center',paddingBottom:6}}>
+                              <div style={{position:'absolute' as const,top:0,right:0,width:10,height:10,background:'white',borderLeft:`1.5px solid ${ext.color}30`,borderBottom:`1.5px solid ${ext.color}30`,borderRadius:'0 0 0 3px'}}/>
+                              <span style={{fontSize:7,fontWeight:800,color:ext.color,fontFamily:F,letterSpacing:'0.03em'}}>{ext.label}</span>
+                            </div>
+                          </div>
+                          <div style={{fontSize:10,fontWeight:500,color:'#334155',fontFamily:F,textAlign:'center' as const,lineHeight:1.3,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical' as const,maxWidth:'100%',wordBreak:'break-word' as const}}>
+                            {String(d.nombre||d.titulo||`Doc ${i+1}`)}
+                          </div>
+                        </a>
+                      );
+                    })}
+                  </div>
+                  :<div style={{display:'flex',flexDirection:'column' as const}}>
+                    {docArr.map((d:any,i:number)=>{
+                      const url=String(d.ruta||d.url||d.link||'');
+                      const ext=getDocExt(url,String(d.nombre||d.titulo||''));
+                      const nombre=String(d.nombre||d.titulo||`Documento ${i+1}`).toUpperCase();
+                      return(
+                        <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:i<docArr.length-1?'1px solid #f8fafc':'none'}}>
+                          <div style={{width:28,height:34,borderRadius:'2px 7px 2px 2px',background:ext.bg,border:`1px solid ${ext.color}20`,display:'flex',alignItems:'flex-end',justifyContent:'center',paddingBottom:4,position:'relative' as const,flexShrink:0}}>
+                            <div style={{position:'absolute' as const,top:0,right:0,width:7,height:7,background:'white',borderLeft:`1px solid ${ext.color}20`,borderBottom:`1px solid ${ext.color}20`,borderRadius:'0 0 0 2px'}}/>
+                            <span style={{fontSize:6,fontWeight:800,color:ext.color,fontFamily:F,letterSpacing:'0.02em'}}>{ext.label}</span>
+                          </div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:12,fontWeight:600,color:'#1e293b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' as const,fontFamily:F}}>{nombre}</div>
+                          </div>
+                          <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+                            <span style={{fontSize:10,fontWeight:600,color:'#64748b',fontFamily:F,background:'#f1f5f9',padding:'2px 7px',borderRadius:5,border:'1px solid #e2e8f0'}}>{ext.label}</span>
+                            {url&&(
+                              <a href={url} target="_blank" rel="noopener noreferrer"
+                                style={{display:'inline-flex',alignItems:'center',gap:5,height:28,padding:'0 12px',borderRadius:7,background:'#1e5799',color:'white',fontSize:11,fontWeight:700,textDecoration:'none',fontFamily:F,transition:'all .15s',flexShrink:0}}
+                                onMouseOver={e=>{(e.currentTarget as HTMLAnchorElement).style.background='#174a85';}}
+                                onMouseOut={e=>{(e.currentTarget as HTMLAnchorElement).style.background='#1e5799';}}>
+                                <svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:10,height:10}}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Descargar
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                :<div style={{textAlign:'center' as const,padding:'40px 0',color:'#94a3b8'}}>
+                  <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{width:32,height:32,margin:'0 auto 10px',display:'block',opacity:.4}}><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+                  <div style={{fontSize:13,fontFamily:F}}>Sin documentos disponibles</div>
+                </div>
+              }
+            </div>
+          )}
+
+          {/* TAB ADENDAS */}
+          {tabActiva==='adendas'&&(
+            <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'16px 18px',flexShrink:0}}>
+              <div style={{fontSize:11,fontWeight:700,color:'#1e5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',marginBottom:12,fontFamily:F,display:'flex',alignItems:'center',gap:8}}>
+                Adendas
+                {adendas.length>0&&<span style={{fontSize:10,fontWeight:700,background:'#1e5799',color:'white',padding:'1px 7px',borderRadius:999}}>{adendas.length}</span>}
+              </div>
+              {cargandoAdendas
+                ?<div style={{fontSize:12,color:'#94a3b8',fontFamily:F}}>Cargando adendas…</div>
+                :<div style={{display:'flex',flexDirection:'column' as const,gap:0}}>
+                  {adendas.length===0&&<div style={{textAlign:'center' as const,padding:'20px 0',color:'#94a3b8'}}><div style={{fontSize:12,fontFamily:F}}>Sin adendas detectadas</div></div>}
+                  {adendas.map((d,i)=>{
+                    const url=d.urlDocumento||'';
+                    const ext=getDocExt(url,d.nombre||'');
+                    const fecha=d.fechaDetectado?new Date(d.fechaDetectado).toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'}):'';
+                    return(
+                      <div key={d.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:i<adendas.length-1?'1px solid #f8fafc':'none'}}>
+                        <div style={{width:28,height:34,borderRadius:'2px 7px 2px 2px',background:ext.bg,border:`1px solid ${ext.color}20`,display:'flex',alignItems:'flex-end',justifyContent:'center',paddingBottom:4,position:'relative' as const,flexShrink:0}}>
+                          <div style={{position:'absolute' as const,top:0,right:0,width:7,height:7,background:'white',borderLeft:`1px solid ${ext.color}20`,borderBottom:`1px solid ${ext.color}20`,borderRadius:'0 0 0 2px'}}/>
+                          <span style={{fontSize:6,fontWeight:800,color:ext.color,fontFamily:F}}>{ext.label}</span>
+                        </div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:12,fontWeight:600,color:'#1e293b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' as const,fontFamily:F}}>{d.nombre||'Sin nombre'}</div>
+                          {fecha&&<div style={{fontSize:10,color:'#94a3b8',fontFamily:F,marginTop:1}}>Detectado: {fecha}</div>}
+                        </div>
+                        {url&&(
+                          <a href={url} target="_blank" rel="noopener noreferrer"
+                            style={{display:'inline-flex',alignItems:'center',gap:5,height:28,padding:'0 12px',borderRadius:7,background:'#1e5799',color:'white',fontSize:11,fontWeight:700,textDecoration:'none',fontFamily:F,transition:'all .15s',flexShrink:0}}
+                            onMouseOver={e=>{(e.currentTarget as HTMLAnchorElement).style.background='#174a85';}}
+                            onMouseOut={e=>{(e.currentTarget as HTMLAnchorElement).style.background='#1e5799';}}>
+                            <svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:10,height:10}}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Descargar
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              }
+            </div>
+          )}
+
+        </div>
+
+        {/* Columna derecha */}
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+
+          {esEspecializada?(
+            <button style={{width:'100%',height:38,borderRadius:10,background:'#1e5799',color:'white',border:'none',fontSize:13,fontWeight:600,fontFamily:F,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:7,transition:'all .15s'}}
+              onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#174a85';}}
+              onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='#1e5799';}}>
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12v4m0 0l-2-2m2 2l2-2"/></svg>
+              Visita técnica
+            </button>
+          ):(
+            <>
+              <button style={{width:'100%',height:38,borderRadius:10,background:'white',color:'#1e5799',border:'1.5px solid #1e5799',fontSize:13,fontWeight:600,fontFamily:F,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:7,transition:'all .15s'}}
+                onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#eff6ff';}}
+                onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';}}>
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                Ver documento IA
+              </button>
+              <button style={{width:'100%',height:38,borderRadius:10,background:'white',color:'#1e5799',border:'1.5px solid #1e5799',fontSize:13,fontWeight:600,fontFamily:F,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:7,transition:'all .15s'}}
+                onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#eff6ff';}}
+                onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';}}>
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                Ver licitaciones similares
+              </button>
+            </>
+          )}
+
+          <div style={{height:1,background:'#f1f5f9',margin:'2px 0'}}/>
+
+          <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'14px'}}>
+            <div style={{fontSize:10,fontWeight:700,color:'#1e5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',marginBottom:10,fontFamily:F}}>Asignar responsable</div>
+            <div style={{position:'relative' as const}}>
+              <select value={responsable} onChange={e=>setResponsable(e.target.value)}
+                style={{width:'100%',height:34,border:'1.5px solid #e2e8f0',borderRadius:8,padding:'0 32px 0 10px',fontSize:12,fontFamily:F,color:responsable?FC_DARK:'#94a3b8',background:'white',outline:'none',boxSizing:'border-box' as const,appearance:'none' as const,cursor:'pointer'}}>
+                <option value="">— Seleccione —</option>
+                {usuarios.map(u=><option key={u.id} value={u.usuario}>{u.usuario} · {u.cargo}</option>)}
+              </select>
+              <div style={{position:'absolute' as const,right:10,top:'50%',transform:'translateY(-50%)',pointerEvents:'none' as const,color:'#94a3b8'}}>
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+            </div>
+            {responsable&&(()=>{
+              const u=usuarios.find(x=>x.usuario===responsable);
+              if(!u)return null;
+              return(
+                <div style={{display:'flex',alignItems:'center',gap:8,marginTop:8,padding:'7px 10px',background:'#f8fafc',borderRadius:7,border:'1px solid #f1f5f9'}}>
+                  <div style={{width:26,height:26,borderRadius:'50%',background:'#1e5799',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,flexShrink:0,fontFamily:F}}>{u.usuario.slice(0,2).toUpperCase()}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:600,color:FC_DARK,fontFamily:F,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' as const}}>{u.usuario}</div>
+                    <div style={{fontSize:10.5,color:FC_LABEL,fontFamily:F}}>{u.cargo}</div>
+                  </div>
+                  <button onClick={()=>setResponsable('')}
+                    style={{width:20,height:20,borderRadius:'50%',border:'1px solid #e2e8f0',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#94a3b8',padding:0,flexShrink:0}}
+                    onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor='#fca5a5';(e.currentTarget as HTMLButtonElement).style.color='#ef4444';}}
+                    onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.borderColor='#e2e8f0';(e.currentTarget as HTMLButtonElement).style.color='#94a3b8';}}>
+                    <svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:10,height:10}}><path d="M18 6L6 18M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              );
+            })()}
+            {error&&<div style={{fontSize:11.5,color:'#dc2626',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,padding:'5px 9px',marginTop:8,fontFamily:F}}>⚠️ {error}</div>}
+          </div>
+
+          <button onClick={asignar} disabled={asignando||!responsable}
+            style={{width:'100%',height:40,borderRadius:10,background:asignando||!responsable?'#e2e8f0':'#1e5799',color:asignando||!responsable?'#94a3b8':'white',border:'none',fontSize:13,fontWeight:700,fontFamily:F,cursor:asignando||!responsable?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:7,transition:'all .15s',boxShadow:asignando||!responsable?'none':'0 2px 8px rgba(30,87,153,0.15)'}}
+            onMouseOver={e=>{if(!asignando&&responsable)(e.currentTarget as HTMLButtonElement).style.background='#174a85';}}
+            onMouseOut={e=>{if(!asignando&&responsable)(e.currentTarget as HTMLButtonElement).style.background='#1e5799';}}>
+            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"/></svg>
+            {asignando?'Asignando…':'Asignar proceso'}
+          </button>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VistFichaBusqueda({sol,sesion,onVolver,onGestionar}:{sol:Solicitud;sesion:Sesion;onVolver:()=>void;onGestionar:()=>Promise<void>}){
+  const [guardando,setGuardando]=React.useState(false);
+  const [error,setError]=React.useState('');
+  const [tabActiva,setTabActiva]=React.useState<'resumen'|'requisitos'|'cronograma'|'documentacion'|'adendas'>('resumen');
+  const [docVista,setDocVista]=React.useState<'grid'|'list'>('list');
+  const [adendas,setAdendas]=React.useState<Array<{id:number;nombre:string;urlDocumento:string|null;fechaDetectado:string}>>([]);
+  const [cargandoAdendas,setCargandoAdendas]=React.useState(false);
+  const F='var(--font)';
+  const FC='#334155';const FC_LABEL='#6b7280';const FC_DARK='#0f172a';
+  const pc=sol.perfil?perfilColor(sol.perfil):null;
+  const fmtFH=(r:string|null)=>{if(!r)return'—';const d=new Date(r);return isNaN(d.getTime())?r:d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});};
+  const fmtV=(v:number|null)=>{if(v==null||isNaN(v)||v===0)return null;return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(v);};
+  const docArr=Array.isArray(sol.docData)?sol.docData as any[]:[];
+  const procDataEntries=Object.entries(sol.procData||{}).filter(([,v])=>(v as any)?.fechaI||(v as any)?.obs);
+
+  React.useEffect(()=>{
+    if(!sol.procesoId)return;
+    setCargandoAdendas(true);
+    fetch(`/api/procesos/${sol.procesoId}/documentos`)
+      .then(r=>r.json())
+      .then(data=>{
+        if(data.ok&&Array.isArray(data.documentos)){
+          const urlsIniciales=new Set(docArr.map((d:any)=>String(d.ruta||d.url||d.link||'').toLowerCase()).filter(Boolean));
+          const nombresIniciales=new Set(docArr.map((d:any)=>String(d.nombre||d.titulo||'').toLowerCase()).filter(Boolean));
+          const nuevos=data.documentos.filter((d:any)=>{
+            const url=String(d.urlDocumento||'').toLowerCase().trim();
+            const nombre=String(d.nombre||'').toLowerCase().trim();
+            const urlMatch=url&&urlsIniciales.has(url);
+            const nombreMatch=nombre&&nombresIniciales.has(nombre);
+            return !urlMatch&&!nombreMatch;
+          });
+          setAdendas(nuevos);
+        }
+      })
+      .catch(()=>{})
+      .finally(()=>setCargandoAdendas(false));
+  },[sol.procesoId]);
+
+  const urlFuente=sol.linkSecop||sol.linkDetalle||sol.linkSecopReg||'';
+  const ebFuente=estadoBadgeColor(sol.estadoFuente||'');
+  const modalidadDisplay=(()=>{
+    const m=sol.modalidad?.trim();
+    if(m&&m!=='—')return MMAP_MODALIDAD[m]??m;
+    const n=(sol.nombreProceso||sol.entidad||sol.objeto||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if(n.includes('minima cuantia'))return'Mínima cuantía';
+    if(n.includes('licitacion'))return'Licitación pública';
+    if(n.includes('seleccion abreviada'))return'Selección abreviada';
+    if(n.includes('contratacion directa'))return'Contratación directa';
+    if(n.includes('concurso de meritos'))return'Concurso de méritos';
+    if(n.includes('regimen especial'))return'Régimen especial';
+    if(n.includes('subasta'))return'Subasta inversa';
+    return'—';
+  })();
+  const fuenteDisplay=sol.fuente?sol.fuente.charAt(0).toUpperCase()+sol.fuente.slice(1):'—';
+
+  const getDocExt=(url:string,nombre?:string)=>{
+    const s=(url||'').toLowerCase();const n=(nombre||'').toLowerCase();
+    const isXls=s.indexOf('.xlsx')>=0||s.indexOf('.xls')>=0||n.indexOf('.xlsx')>=0||n.indexOf('.xls')>=0||n.indexOf('xlsx')>=0||n.indexOf('excel')>=0||n.indexOf('hoja')>=0;
+    const isDoc=s.indexOf('.docx')>=0||s.indexOf('.doc')>=0||n.indexOf('.docx')>=0||n.indexOf('.doc')>=0||n.indexOf('word')>=0;
+    const isZip=s.indexOf('.zip')>=0||s.indexOf('.rar')>=0||n.indexOf('.zip')>=0||n.indexOf('.rar')>=0;
+    if(isXls)return{bg:'#f0fdf4',color:'#475569',label:'XLS'};
+    if(isDoc)return{bg:'#eff6ff',color:'#1d4ed8',label:'DOC'};
+    if(isZip)return{bg:'#faf5ff',color:'#7e22ce',label:'ZIP'};
+    return{bg:'#fff1f2',color:'#be123c',label:'PDF'};
+  };
+
+  const MetaItem=({icon,label,value,badge}:{icon:React.ReactNode;label:string;value?:string;badge?:React.ReactNode})=>(
+    <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontFamily:F,color:FC,flexShrink:0}}>
+      <span style={{color:'#94a3b8',display:'flex',alignItems:'center'}}>{icon}</span>
+      <span style={{fontWeight:600,color:FC_DARK}}>{label}:</span>
+      {badge?badge:<span style={{color:FC}}>{value}</span>}
+    </div>
+  );
+  const sep=<div style={{width:1,height:14,background:'#cbd5e1',flexShrink:0}}/>;
+  const TABS:[string,typeof tabActiva][]=[['Resumen','resumen'],['Requisitos','requisitos'],['Cronograma','cronograma'],['Documentación','documentacion'],['Adendas','adendas']];
+
+  const hGestionar=async()=>{
+    setGuardando(true);setError('');
+    try{await onGestionar();}
+    catch(e){setError(e instanceof Error?e.message:'Error al gestionar.');}
+    finally{setGuardando(false);}
+  };
+
+  const bloqueAdendas=(
+    <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'16px 18px',flexShrink:0}}>
+      <div style={{fontSize:11,fontWeight:700,color:'#1e5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',marginBottom:12,fontFamily:F,display:'flex',alignItems:'center',gap:8}}>
+        Adendas
+        {adendas.length>0&&<span style={{fontSize:10,fontWeight:700,background:'#1e5799',color:'white',padding:'1px 7px',borderRadius:999}}>{adendas.length}</span>}
+      </div>
+      {cargandoAdendas
+        ?<div style={{fontSize:12,color:'#94a3b8',fontFamily:F}}>Cargando adendas…</div>
+        :<div style={{display:'flex',flexDirection:'column' as const,gap:0}}>
+          {adendas.length===0&&<div style={{textAlign:'center' as const,padding:'20px 0',color:'#94a3b8'}}><div style={{fontSize:12,fontFamily:F}}>Sin adendas detectadas</div></div>}
+          {adendas.map((d,i)=>{
+            const url=d.urlDocumento||'';
+            const s=url.toLowerCase();
+            const ext=s.includes('.xlsx')||s.includes('.xls')?{bg:'#f0fdf4',color:'#475569',label:'XLS'}:s.includes('.docx')||s.includes('.doc')?{bg:'#eff6ff',color:'#1d4ed8',label:'DOC'}:s.includes('.zip')||s.includes('.rar')?{bg:'#faf5ff',color:'#7e22ce',label:'ZIP'}:{bg:'#fff1f2',color:'#be123c',label:'PDF'};
+            const fecha=d.fechaDetectado?new Date(d.fechaDetectado).toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'}):'';
+            return(
+              <div key={d.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:i<adendas.length-1?'1px solid #f8fafc':'none'}}>
+                <div style={{width:28,height:34,borderRadius:'2px 7px 2px 2px',background:ext.bg,border:`1px solid ${ext.color}20`,display:'flex',alignItems:'flex-end',justifyContent:'center',paddingBottom:4,position:'relative' as const,flexShrink:0}}>
+                  <div style={{position:'absolute' as const,top:0,right:0,width:7,height:7,background:'white',borderLeft:`1px solid ${ext.color}20`,borderBottom:`1px solid ${ext.color}20`,borderRadius:'0 0 0 2px'}}/>
+                  <span style={{fontSize:6,fontWeight:800,color:ext.color,fontFamily:F}}>{ext.label}</span>
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:600,color:'#1e293b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' as const,fontFamily:F}}>{d.nombre||'Sin nombre'}</div>
+                  {fecha&&<div style={{fontSize:10,color:'#94a3b8',fontFamily:F,marginTop:1}}>Detectado: {fecha}</div>}
+                </div>
+                {url&&(
+                  <a href={url} target="_blank" rel="noopener noreferrer"
+                    style={{display:'inline-flex',alignItems:'center',gap:5,height:28,padding:'0 12px',borderRadius:7,background:'#1e5799',color:'white',fontSize:11,fontWeight:700,textDecoration:'none',fontFamily:F,transition:'all .15s',flexShrink:0}}
+                    onMouseOver={e=>{(e.currentTarget as HTMLAnchorElement).style.background='#174a85';}}
+                    onMouseOut={e=>{(e.currentTarget as HTMLAnchorElement).style.background='#1e5799';}}>
+                    <svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:10,height:10}}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Descargar
+                  </a>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      }
+    </div>
+  );
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',background:'#f8fafc'}}>
+      {/* BARRA 1 */}
+      <div style={{background:'white',borderBottom:'1px solid #e2e8f0',padding:'4px 24px',flexShrink:0,overflow:'hidden'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'nowrap' as const,overflow:'hidden'}}>
+          {sol.estadoFuente&&<><MetaItem icon={<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>} label="Estado" badge={<span style={{display:'inline-flex',alignItems:'center',fontSize:10,fontWeight:600,color:ebFuente.color,background:ebFuente.bg,padding:'1px 7px',borderRadius:999,fontFamily:F}}>{sol.estadoFuente}</span>}/>{sep}</>}
+          {fmtV(sol.valor)&&<><MetaItem icon={<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>} label="Presupuesto" badge={<span style={{fontWeight:600,color:'#475569',fontFamily:F,fontSize:10}}>{fmtV(sol.valor)}</span>}/>{sep}</>}
+          {pc&&<><MetaItem icon={<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5"/></svg>} label="Perfil" badge={<span style={{display:'inline-flex',alignItems:'center',fontSize:10,fontWeight:600,color:'white',background:pc.color,padding:'1px 7px',borderRadius:999,fontFamily:F}}>{pc.label}</span>}/>{sep}</>}
+          {sol.codigoProceso&&<><MetaItem icon={<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><path d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/></svg>} label="No. Proceso" badge={<span style={{fontWeight:600,color:'#475569',fontFamily:'monospace',fontSize:10}}>{sol.codigoProceso}</span>}/>{sep}</>}
+          {sol.fechaVencimiento&&<MetaItem icon={<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>} label="Vencimiento" badge={<span style={{fontWeight:600,color:'#475569',fontFamily:F,fontSize:10}}>{fmtFH(sol.fechaVencimiento)}</span>}/>}
+        </div>
+      </div>
+      {/* BARRA 2 */}
+      <div style={{background:'white',borderBottom:'1px solid #e2e8f0',padding:'0 24px',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:0}}>
+          <button onClick={onVolver}
+            style={{display:'inline-flex',alignItems:'center',gap:5,height:44,padding:'0 14px 0 0',border:'none',borderRight:'1px solid #e2e8f0',background:'transparent',color:'#475569',fontSize:12,fontWeight:500,fontFamily:F,cursor:'pointer',flexShrink:0,marginRight:16}}
+            onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.color='#1e5799';}}
+            onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.color='#475569';}}>
+            <svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+            Volver
+          </button>
+          {TABS.map(([label,key])=>(
+            <button key={key} onClick={()=>setTabActiva(key as typeof tabActiva)}
+              style={{height:44,padding:'0 16px',border:'none',borderBottom:tabActiva===key?'2.5px solid #1e5799':'2.5px solid transparent',background:'transparent',color:tabActiva===key?'#1e5799':'#64748b',fontSize:13,fontWeight:tabActiva===key?700:400,fontFamily:F,cursor:'pointer',transition:'all .15s',display:'inline-flex',alignItems:'center',gap:6,flexShrink:0}}>
+              {label}
+              {key==='documentacion'&&docArr.length>0&&<span style={{fontSize:10,fontWeight:700,background:tabActiva===key?'#1e5799':'#e2e8f0',color:tabActiva===key?'white':'#64748b',padding:'1px 6px',borderRadius:999}}>{docArr.length}</span>}
+              {key==='cronograma'&&procDataEntries.length>0&&<span style={{fontSize:10,fontWeight:700,background:tabActiva===key?'#1e5799':'#e2e8f0',color:tabActiva===key?'white':'#64748b',padding:'1px 6px',borderRadius:999}}>{procDataEntries.length}</span>}
+              {key==='adendas'&&adendas.length>0&&<span style={{fontSize:10,fontWeight:700,background:tabActiva===key?'#1e5799':'#e2e8f0',color:tabActiva===key?'white':'#64748b',padding:'1px 6px',borderRadius:999}}>{adendas.length}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+      {/* STEPPER */}
+      <div style={{background:'white',borderBottom:'1px solid #e2e8f0',padding:'0 24px',flexShrink:0}}>
+        <StepperSolicitud estadoSolicitud="Selección de proceso"/>
+      </div>
+      {/* CUERPO */}
+      <div style={{flex:1,overflow:'hidden',display:'grid',gridTemplateColumns:'1fr 300px',gap:16,padding:'16px 24px'}}>
+        <div style={{display:'flex',flexDirection:'column',gap:12,overflowY:'auto',paddingRight:2,scrollbarWidth:'thin' as const,scrollbarColor:'transparent transparent'}}
+          onMouseOver={e=>{(e.currentTarget as HTMLDivElement).style.scrollbarColor='#cbd5e1 transparent';}}
+          onMouseOut={e=>{(e.currentTarget as HTMLDivElement).style.scrollbarColor='transparent transparent';}}>
+          {tabActiva==='resumen'&&<>
+            {sol.objeto&&(<div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'16px 18px',flexShrink:0}}><div style={{fontSize:11,fontWeight:700,color:'#1e5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',marginBottom:10,fontFamily:F}}>Descripción</div><p style={{margin:0,fontSize:11.5,color:'#334155',fontFamily:F,lineHeight:1.6,textAlign:'justify' as const}}>{sol.objeto.charAt(0).toUpperCase()+sol.objeto.slice(1)}</p></div>)}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,flexShrink:0}}>
+              <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'14px 16px'}}><div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}><svg fill="none" stroke="#64748b" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14,flexShrink:0}}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z"/></svg><span style={{fontSize:11,fontWeight:700,color:'#374151',fontFamily:F}}>Entidad contratante</span></div><div style={{display:'flex',flexDirection:'column' as const,gap:8}}><div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Organización</div><div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{sol.entidad||'—'}</div></div>{sol.departamento&&(()=>{const partes=(sol.departamento||'').split(';').map((s:string)=>s.trim()).filter(Boolean);const deptos=partes.map((p:string)=>p.split(':')[0].trim()).filter(Boolean).join(', ');const ciudad=partes.map((p:string)=>p.includes(':')?p.split(':').slice(1).join(':').trim():'').filter(Boolean).join(', ');return(<><div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Departamento</div><div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{deptos||'—'}</div></div>{ciudad&&<div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Ciudad</div><div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{ciudad}</div></div>}</>);})()}</div></div>
+              <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'14px 16px'}}><div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}><svg fill="none" stroke="#64748b" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14,flexShrink:0}}><path d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg><span style={{fontSize:11,fontWeight:700,color:'#374151',fontFamily:F}}>Información del contrato</span></div><div style={{display:'flex',flexDirection:'column' as const,gap:8}}><div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Modalidad</div><div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{modalidadDisplay}</div></div><div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>Fuente</div><div style={{display:'flex',alignItems:'center',gap:6}}><div style={{fontSize:12.5,color:'#0f172a',fontFamily:F}}>{fuenteDisplay}</div>{urlFuente&&(<a href={urlFuente} target="_blank" rel="noopener noreferrer" title="Abrir en portal" style={{width:22,height:22,borderRadius:6,border:'1px solid #e2e8f0',background:'white',display:'inline-flex',alignItems:'center',justifyContent:'center',color:'#64748b',flexShrink:0,transition:'all .15s',textDecoration:'none'}} onMouseOver={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#1e5799';(e.currentTarget as HTMLAnchorElement).style.color='#1e5799';(e.currentTarget as HTMLAnchorElement).style.background='#eff6ff';}} onMouseOut={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#e2e8f0';(e.currentTarget as HTMLAnchorElement).style.color='#64748b';(e.currentTarget as HTMLAnchorElement).style.background='white';}}><svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:11,height:11}}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>)}</div></div><div><div style={{fontSize:10,fontWeight:700,color:'#374151',fontFamily:F,marginBottom:2}}>No. proceso</div><div style={{fontSize:12,color:'#0f172a',fontFamily:'monospace'}}>{sol.codigoProceso||'—'}</div></div></div></div>
+              <div/>
+            </div>
+          </>}
+          {tabActiva==='requisitos'&&(<div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'20px 24px',flexShrink:0}}><div style={{fontSize:11,fontWeight:700,color:'#1e5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',marginBottom:16,fontFamily:F}}>Requisitos del proceso</div><div style={{textAlign:'center' as const,padding:'40px 0',color:'#94a3b8'}}><svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{width:32,height:32,margin:'0 auto 10px',display:'block',opacity:.4}}><path d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg><div style={{fontSize:13,fontFamily:F}}>Sin requisitos registrados</div></div></div>)}
+          {tabActiva==='cronograma'&&(<div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'24px 28px',flexShrink:0}}><div style={{fontSize:11,fontWeight:700,color:'#1e5799',textTransform:'uppercase' as const,letterSpacing:'0.08em',marginBottom:20,fontFamily:F}}>Cronograma de fechas</div>{(sol.fechaPublicacion||sol.fechaVencimiento||procDataEntries.length>0)?<div style={{display:'flex',flexDirection:'column' as const}}>{sol.fechaPublicacion&&(<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:'1px solid #f1f5f9'}}><span style={{fontSize:11,color:'#374151',fontFamily:F}}>Fecha de publicación</span><span style={{fontSize:11,fontWeight:700,color:FC_DARK,fontFamily:F,whiteSpace:'nowrap' as const}}>{fmtFH(sol.fechaPublicacion)}</span></div>)}{sol.fechaVencimiento&&(<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:procDataEntries.length>0?'1px solid #f1f5f9':'none'}}><span style={{fontSize:11,color:'#374151',fontFamily:F}}>Fecha de vencimiento</span><span style={{fontSize:11,fontWeight:700,color:'#475569',fontFamily:F,whiteSpace:'nowrap' as const}}>{fmtFH(sol.fechaVencimiento)}</span></div>)}{procDataEntries.map(([k,v],i)=>{const vv=v as any;return(<div key={k} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:i<procDataEntries.length-1?'1px solid #f1f5f9':'none'}}><span style={{fontSize:11,color:'#374151',fontFamily:F,flex:1,paddingRight:24}}>{vv.obs||`Etapa ${i+1}`}</span><span style={{fontSize:11,fontWeight:700,color:FC_DARK,fontFamily:F,whiteSpace:'nowrap' as const,flexShrink:0}}>{vv.fechaI}{vv.fechaF&&vv.fechaF!==vv.fechaI?` → ${vv.fechaF}`:''}</span></div>);})}</div>:<div style={{textAlign:'center' as const,padding:'40px 0',color:'#94a3b8'}}><svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{width:32,height:32,margin:'0 auto 10px',display:'block',opacity:.4}}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><div style={{fontSize:13,fontFamily:F}}>Sin cronograma registrado</div></div>}</div>)}
+          {tabActiva==='documentacion'&&(<div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:10,padding:'16px 20px',flexShrink:0}}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}><div style={{fontSize:11,fontWeight:700,color:'#1e5799',textTransform:'uppercase' as const,letterSpacing:'0.08em',fontFamily:F}}>Documentos {docArr.length>0&&`(${docArr.length})`}</div><div style={{display:'flex',border:'1.5px solid #e2e8f0',borderRadius:7,overflow:'hidden'}}>{([{v:'grid'},{v:'list'}] as {v:'grid'|'list'}[]).map(({v})=>(<button key={v} onClick={()=>setDocVista(v)} style={{width:28,height:26,border:'none',background:docVista===v?'#1e5799':'white',color:docVista===v?'white':'#64748b',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .15s'}}>{v==='grid'?<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>:<svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>}</button>))}</div></div>{docArr.length>0?docVista==='grid'?<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(90px,1fr))',gap:10}}>{docArr.map((d:any,i:number)=>{const url=String(d.ruta||d.url||d.link||'');const ext=getDocExt(url,String(d.nombre||d.titulo||''));return(<a key={i} href={url||'#'} target="_blank" rel="noopener noreferrer" style={{display:'flex',flexDirection:'column' as const,alignItems:'center',gap:6,padding:'10px 6px',border:'1.5px solid #f1f5f9',borderRadius:10,textDecoration:'none',background:'white',transition:'all .15s'}} onMouseOver={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#1e5799';(e.currentTarget as HTMLAnchorElement).style.background='#f8fbff';}} onMouseOut={e=>{(e.currentTarget as HTMLAnchorElement).style.borderColor='#f1f5f9';(e.currentTarget as HTMLAnchorElement).style.background='white';}}><div style={{position:'relative' as const,width:40,height:48}}><div style={{width:40,height:48,borderRadius:'3px 10px 3px 3px',background:ext.bg,border:`1.5px solid ${ext.color}30`,display:'flex',alignItems:'flex-end',justifyContent:'center',paddingBottom:6}}><div style={{position:'absolute' as const,top:0,right:0,width:10,height:10,background:'white',borderLeft:`1.5px solid ${ext.color}30`,borderBottom:`1.5px solid ${ext.color}30`,borderRadius:'0 0 0 3px'}}/><span style={{fontSize:7,fontWeight:800,color:ext.color,fontFamily:F,letterSpacing:'0.03em'}}>{ext.label}</span></div></div><div style={{fontSize:10,fontWeight:500,color:'#334155',fontFamily:F,textAlign:'center' as const,lineHeight:1.3,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical' as const,maxWidth:'100%',wordBreak:'break-word' as const}}>{String(d.nombre||d.titulo||`Doc ${i+1}`)}</div></a>);})}</div>:<div style={{display:'flex',flexDirection:'column' as const}}>{docArr.map((d:any,i:number)=>{const url=String(d.ruta||d.url||d.link||'');const ext=getDocExt(url,String(d.nombre||d.titulo||''));const nombre=String(d.nombre||d.titulo||`Documento ${i+1}`).toUpperCase();return(<div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:i<docArr.length-1?'1px solid #f8fafc':'none'}}><div style={{width:28,height:34,borderRadius:'2px 7px 2px 2px',background:ext.bg,border:`1px solid ${ext.color}20`,display:'flex',alignItems:'flex-end',justifyContent:'center',paddingBottom:4,position:'relative' as const,flexShrink:0}}><div style={{position:'absolute' as const,top:0,right:0,width:7,height:7,background:'white',borderLeft:`1px solid ${ext.color}20`,borderBottom:`1px solid ${ext.color}20`,borderRadius:'0 0 0 2px'}}/><span style={{fontSize:6,fontWeight:800,color:ext.color,fontFamily:F,letterSpacing:'0.02em'}}>{ext.label}</span></div><div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:'#1e293b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' as const,fontFamily:F}}>{nombre}</div></div><div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}><span style={{fontSize:10,fontWeight:600,color:'#64748b',fontFamily:F,background:'#f1f5f9',padding:'2px 7px',borderRadius:5,border:'1px solid #e2e8f0'}}>{ext.label}</span>{url&&(<a href={url} target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:5,height:28,padding:'0 12px',borderRadius:7,background:'#1e5799',color:'white',fontSize:11,fontWeight:700,textDecoration:'none',fontFamily:F,transition:'all .15s',flexShrink:0}} onMouseOver={e=>{(e.currentTarget as HTMLAnchorElement).style.background='#174a85';}} onMouseOut={e=>{(e.currentTarget as HTMLAnchorElement).style.background='#1e5799';}}><svg fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" style={{width:10,height:10}}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Descargar</a>)}</div></div>);})}</div>:<div style={{textAlign:'center' as const,padding:'40px 0',color:'#94a3b8'}}><svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{width:32,height:32,margin:'0 auto 10px',display:'block',opacity:.4}}><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg><div style={{fontSize:13,fontFamily:F}}>Sin documentos disponibles</div></div>}</div>)}
+          {tabActiva==='adendas'&&bloqueAdendas}
+        </div>
+        {/* Columna derecha */}
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <button style={{width:'100%',height:38,borderRadius:10,background:'white',color:'#1e5799',border:'1.5px solid #1e5799',fontSize:13,fontWeight:600,fontFamily:F,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:7,transition:'all .15s'}} onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#eff6ff';}} onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';}}>
+            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            Ver documento IA
+          </button>
+          <button style={{width:'100%',height:38,borderRadius:10,background:'white',color:'#1e5799',border:'1.5px solid #1e5799',fontSize:13,fontWeight:600,fontFamily:F,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:7,transition:'all .15s'}} onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#eff6ff';}} onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';}}>
+            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            Ver licitaciones similares
+          </button>
+          <div style={{height:1,background:'#f1f5f9',margin:'2px 0'}}/>
+          {error&&<div style={{fontSize:11.5,color:'#dc2626',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:6,padding:'5px 9px',fontFamily:F}}>⚠️ {error}</div>}
+          <button onClick={hGestionar} disabled={guardando}
+            style={{width:'100%',height:40,borderRadius:10,background:guardando?'#6b93c4':'#1e5799',color:'white',border:'none',fontSize:13,fontWeight:700,fontFamily:F,cursor:guardando?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:7,transition:'all .15s',boxShadow:guardando?'none':'0 2px 8px rgba(30,87,153,0.15)'}}
+            onMouseOver={e=>{if(!guardando)(e.currentTarget as HTMLButtonElement).style.background='#174a85';}}
+            onMouseOut={e=>{if(!guardando)(e.currentTarget as HTMLButtonElement).style.background='#1e5799';}}>
+            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            {guardando?'Guardando…':'Gestionar proceso'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function ModuloSolicitudesAbiertasBase({sesion,variante}:{sesion:Sesion;variante:VarianteSolicitudes}){
   const cfg = VARIANTE_CONFIG[variante];
   const [solicitudes,setSolicitudes]=useState<Solicitud[]>([]);
@@ -1983,38 +3983,41 @@ function ModuloSolicitudesAbiertasBase({sesion,variante}:{sesion:Sesion;variante
   const [modalEliminar,setModalEliminar]=useState(false);
   const [modalCrear,setModalCrear]=useState(false);
   const [modalEditar,setModalEditar]=useState<Solicitud|null>(null);
+  const [fichaAbierta,setFichaAbierta]=useState<Solicitud|null>(null);
 
-const cargar = useCallback(async () => {
-  setCargando(true);
-  setError('');
+  const origenSolicitudAuto =
+    String(variante).toUpperCase().includes('ESPECIAL')
+      ? 'Especializada'
+      : 'Comercial';
 
-  try {
-    let url = '/api/solicitudes?limit=200';
+  const mostrarColumnasContacto = variante === 'ESPECIALIZADA';
 
-    if (variante === 'RECHAZADA') {
-      url += '&estado=Rechazada';
-    } else if (variante === 'COMERCIAL' || variante === 'ESPECIALIZADA') {
-      url += '&estado=En%20revisi%C3%B3n';
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    setError('');
+    try {
+      let url = '/api/solicitudes?limit=200';
+      if (variante === 'RECHAZADA') {
+        url += '&estado=Rechazada';
+      } else if (variante === 'COMERCIAL' || variante === 'ESPECIALIZADA') {
+        url += '&estado=En%20revisi%C3%B3n';
+      }
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setError(data.error ?? 'Error al cargar solicitudes.');
+        return;
+      }
+      setSolicitudes((data.solicitudes ?? []).slice().sort((a: Solicitud, b: Solicitud) => a.id - b.id));
+    } catch {
+      setError('No se pudo conectar.');
+    } finally {
+      setCargando(false);
     }
+  }, [variante]);
 
-    const res = await fetch(url);
-    const data = await res.json();
-
-    if (!res.ok || !data.ok) {
-      setError(data.error ?? 'Error al cargar solicitudes.');
-      return;
-    }
-
-    setSolicitudes((data.solicitudes ?? []).slice().sort((a: Solicitud, b: Solicitud) => a.id - b.id));
-  } catch {
-    setError('No se pudo conectar.');
-  } finally {
-    setCargando(false);
-  }
-}, [variante]);
   useEffect(()=>{cargar();},[cargar]);
 
-  /* Primero filtrar por variante, luego por búsqueda */
   const porVariante=useMemo(()=>solicitudes.filter(s=>matchVariante(s,variante)),[solicitudes,variante]);
 
   const filtradas=useMemo(()=>porVariante.filter(s=>{
@@ -2024,9 +4027,36 @@ const cargar = useCallback(async () => {
            s.sqrNumero].some(v=>(v||'').toLowerCase().includes(q));
   }),[porVariante,busqueda]);
 
-  const todosMarcados=filtradas.length>0&&seleccionados.length===filtradas.length;
-  const toggleAll=(c:boolean)=>setSeleccionados(c?filtradas.map(s=>s.id):[]);
-  const toggleOne=(id:number,c:boolean)=>setSeleccionados(c?[id]:[]);
+  const POR_PAGINA_SOLICITUDES = 7;
+  const [paginaSolicitudes, setPaginaSolicitudes] = useState(1);
+
+  useEffect(() => {
+    setPaginaSolicitudes(1);
+    setSeleccionados([]);
+  }, [busqueda, variante]);
+
+  const totalPagesSolicitudes = Math.max(1,Math.ceil(filtradas.length / POR_PAGINA_SOLICITUDES));
+  const paginaSeguraSolicitudes = Math.min(paginaSolicitudes, totalPagesSolicitudes);
+  const solicitudesPagina = filtradas.slice(
+    (paginaSeguraSolicitudes - 1) * POR_PAGINA_SOLICITUDES,
+    paginaSeguraSolicitudes * POR_PAGINA_SOLICITUDES
+  );
+
+  const todosMarcados = solicitudesPagina.length > 0 && solicitudesPagina.every((s) => seleccionados.includes(s.id));
+
+  const toggleAll = (c: boolean) => {
+    const idsPagina = solicitudesPagina.map((s) => s.id);
+    setSeleccionados((prev) => {
+      if (c) return Array.from(new Set([...prev, ...idsPagina]));
+      return prev.filter((id) => !idsPagina.includes(id));
+    });
+  };
+
+  const toggleOne = (id: number, c: boolean) =>
+    setSeleccionados((prev) =>
+      c ? Array.from(new Set([...prev, id])) : prev.filter((x) => x !== id)
+    );
+
   const abrirModal=(s:Solicitud)=>setModalProceso(s);
 
   const fmtFecha=(r:string|null)=>{if(!r)return'—';const d=new Date(r);return isNaN(d.getTime())?r:d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});};
@@ -2035,38 +4065,39 @@ const cargar = useCallback(async () => {
   const tipoFromSolicitud=(s:Solicitud)=>{if((s.fuente||'').toLowerCase().includes('secop'))return'Público';if(s.sede==='Público'||s.sede==='Privado')return s.sede;return(s.fuente||'').toLowerCase().includes('manual')?'Manual':'Privado';};
   const sqrDisplay=(s:Solicitud)=>{
     if(s.sqrError)return{label:'Error SQR',bg:'#fef2f2',color:'#dc2626'};
-    if(s.sqrNumero)return{label:s.sqrNumero,bg:'#E8F5E9',color:'#15803d'};
+    if(s.sqrNumero)return{label:s.sqrNumero,bg:'#E8F5E9',color:'#475569'};
     return{label:'Sin SQR',bg:'#f1f5f9',color:'#94a3b8'};
+  };
+  const modalidadSolicitud=(s:Solicitud)=>{
+    const m=MMAP_MODALIDAD[s.modalidad]||s.modalidad||'';
+    if(m)return m;
+    const n=(s.nombreProceso||s.objeto||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if(n.includes('minima cuantia'))return'Mínima cuantía';
+    if(n.includes('licitacion'))return'Licitación pública';
+    if(n.includes('seleccion abreviada'))return'Selección abreviada';
+    if(n.includes('contratacion directa'))return'Contratación directa';
+    if(n.includes('concurso de meritos'))return'Concurso de méritos';
+    if(n.includes('regimen especial'))return'Régimen especial';
+    return'—';
   };
 
   const exportarExcelSolicitudes=()=>{
     const datos=filtradas.length>0?filtradas:porVariante;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const hacer=(XLSX:any)=>{
-      const cab=['N°','Estado','SQR','Fecha creación','Tipo proceso','Modalidad','Entidad grupo','Descripción','Cliente','No. proceso','Presupuesto','Ciudad','Plataforma','Usuario registra','Fecha cierre'];
+      const cab=['N°','Tipo proceso','Entidad grupo','No. proceso','Entidad contratante','Modalidad','Fecha cierre'];
       const filas=datos.map(s=>[
         s.id,
-        s.estadoSolicitud||'',
-        s.sqrNumero||'',
-        s.createdAt?new Date(s.createdAt).toLocaleDateString('es-CO'):'',
         (s.fuente||'').toLowerCase().includes('secop')?'Público':'Privado',
-        MMAP_MODALIDAD[s.modalidad]||s.modalidad||'',
         s.perfil||'',
-        s.objeto||'',
-        s.entidad||'',
         s.codigoProceso||'',
-        s.valor||0,
-        s.ciudad||s.departamento?.split(':')[0]?.trim()||'',
-        s.plataforma||s.aliasFuente||'',
-        s.usuarioRegistro||'',
+        s.entidad||'',
+        modalidadSolicitud(s),
         s.fechaCierre||s.fechaVencimiento?new Date(s.fechaCierre||s.fechaVencimiento||'').toLocaleDateString('es-CO'):'',
       ]);
       const wb=XLSX.utils.book_new();
       const ws=XLSX.utils.aoa_to_sheet([cab,...filas]);
-      ws['!cols']=[{wch:6},{wch:14},{wch:14},{wch:18},{wch:12},{wch:22},{wch:14},{wch:50},{wch:30},{wch:18},{wch:16},{wch:14},{wch:14},{wch:20},{wch:14}];
-      // Formato moneda en columna Presupuesto (índice 10)
-      const range=XLSX.utils.decode_range(ws['!ref']??'A1');
-      for(let R=1;R<=range.e.r;R++){const cell=ws[XLSX.utils.encode_cell({r:R,c:10})];if(cell&&cell.t==='n')cell.z='$#,##0';}
+      ws['!cols']=[{wch:6},{wch:12},{wch:14},{wch:18},{wch:30},{wch:20},{wch:14}];
       const titulo=cfg.titulo.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
       XLSX.utils.book_append_sheet(wb,ws,cfg.titulo.slice(0,31));
       XLSX.writeFile(wb,`${titulo}_${new Date().toISOString().slice(0,10)}.xlsx`,{bookType:'xlsx',type:'binary'});
@@ -2079,35 +4110,41 @@ const cargar = useCallback(async () => {
   };
 
   const COLS=[
-    {w:72,label:'N°'},
-    {w:120,label:'Estado'},
-    {w:52,label:'Ficha'},
-    {w:90,label:'SQR'},
-    {w:148,label:'Fecha creación'},
-    {w:100,label:'Tipo proceso'},
-    {w:148,label:'Modalidad'},
-    {w:120,label:'Entidad grupo'},
-    {w:248,label:'Descripción'},
-    {w:170,label:'Cliente'},
-    {w:135,label:'No. proceso'},
-    {w:140,label:'Presupuesto'},
-    {w:104,label:'Ciudad'},
-    {w:104,label:'Plataforma'},
-    {w:152,label:'Usuario registra'},
-    {w:114,label:'Fecha cierre'},
+    {w:48,label:'N°'},
+    {w:88,label:'Tipo proceso'},
+    {w:100,label:'Entidad grupo'},
+    {w:120,label:'No. proceso'},
+    {w:1,label:'Entidad contratante'},
+    {w:120,label:'Modalidad'},
+    {w:96,label:'Fecha cierre'},
+    {w:44,label:'Ficha'},
   ];
+
+  if(fichaAbierta) return (
+    <VistFicha
+      sol={fichaAbierta} sesion={sesion} variante={variante}
+      onVolver={()=>setFichaAbierta(null)}
+      onGuardado={(updated)=>{setSolicitudes(prev=>prev.map(x=>x.id===updated.id?updated:x));setFichaAbierta(updated);}}
+    />
+  );
 
   if(cargando)return<div className="content"><div className="module-status">Cargando solicitudes…</div></div>;
   if(error)return<div className="content"><div className="module-status error">{error}</div></div>;
 
   return(<>
-    {modalCrear&&<ModalCrearSolicitud sesion={sesion} onClose={()=>setModalCrear(false)} onCreada={()=>{setModalCrear(false);cargar();}}/>}
+    {modalCrear && (
+      <ModalCrearSolicitud
+        sesion={sesion}
+        origenSolicitud={origenSolicitudAuto}
+        onClose={() => setModalCrear(false)}
+        onCreada={() => {setModalCrear(false);cargar();}}
+      />
+    )}
     {modalEditar&&<ModalEditarSolicitud sol={modalEditar} sesion={sesion} onClose={()=>setModalEditar(null)} onGuardado={(updated)=>{setSolicitudes(prev=>prev.map(s=>s.id===updated.id?updated:s));setModalEditar(null);setSeleccionados([]);}}/>}
-    {modalProceso&&<ModalProceso sol={modalProceso} onClose={()=>setModalProceso(null)} onGuardado={(updated)=>{setSolicitudes(prev=>prev.map(s=>s.id===updated.id?updated:s));setModalProceso(null);}}/>}
     {modalEliminar&&<ModalConfirmarEliminarSolicitud solicitudes={solicitudes.filter(s=>seleccionados.includes(s.id))} onClose={()=>setModalEliminar(false)} onEliminado={()=>{setSeleccionados([]);cargar();}} sesion={sesion}/>}
     <div className="content">
       <div className="page-header">
-        <div className="page-title"><IcoSolicitudes/><span>{cfg.titulo} : {filtradas.length} / {porVariante.length}</span></div>
+        <div className="page-title"><IcoSolicitudes/><span>{cfg.titulo}</span></div>
         <div className="page-actions">
           <input type="text" className="search-box" placeholder="Buscar…" value={busqueda} onChange={e=>setBusqueda(e.target.value)}/>
           <button className="icon-btn" title="Información"><IcoInfo/></button>
@@ -2122,50 +4159,52 @@ const cargar = useCallback(async () => {
       </div>
       <div className="table-card">
         <div className="table-scroll">
-          <table>
+          <table style={{tableLayout:'auto',width:'100%'}}>
             <thead>
               <tr>
                 <th style={{width:36}}><div className="th-top"><input type="checkbox" className="cbx" checked={todosMarcados} onChange={e=>toggleAll(e.target.checked)}/></div></th>
-                {COLS.map(({w,label})=><th key={label} style={{minWidth:w}}><div className="th-top">{label}</div></th>)}
+                <th style={{width:48}}><div className="th-top">N°</div></th>
+                <th style={{width:88}}><div className="th-top">Tipo proceso</div></th>
+                <th style={{width:100}}><div className="th-top">Entidad grupo</div></th>
+                <th style={{width:120}}><div className="th-top">No. proceso</div></th>
+                <th style={{width:180,whiteSpace:'normal' as const}}><div className="th-top">Entidad contratante</div></th>
+                <th style={{width:120}}><div className="th-top">Modalidad</div></th>
+                <th style={{width:96}}><div className="th-top">Fecha cierre</div></th>
+                <th style={{width:44}}><div className="th-top">Ficha</div></th>
               </tr>
-              <tr><th/>{COLS.map(({label})=><th key={label}><div style={{padding:'0 10px 5px',color:'#d1d5db',fontSize:11}}>≡</div></th>)}</tr>
+              <tr>
+                <th/><th/><th/><th/><th/><th/><th/><th/><th/>
+              </tr>
             </thead>
             <tbody>
               {filtradas.length===0
-                ?<tr><td colSpan={COLS.length+1} style={{textAlign:'center',color:'#6b7280',padding:'36px 10px',fontSize:13}}>
+                ?<tr><td colSpan={9} style={{textAlign:'center',color:'#6b7280',padding:'36px 10px',fontSize:13}}>
                   {porVariante.length===0?cfg.emptyMsg:'Sin resultados.'}
                 </td></tr>
-                :filtradas.map(s=>{
+                :solicitudesPagina.map(s=>{
                   const ebc=estadoSolicitudColor(s.estadoSolicitud||'');
                   const pc=s.perfil?perfilColor(s.perfil):null;
                   const tipoP=tipoFromSolicitud(s);
                   const sqr=sqrDisplay(s);
+                  const modalidad=modalidadSolicitud(s);
                   return(
-                    <tr key={s.id} onDoubleClick={()=>abrirModal(s)} style={{cursor:'default'}}>
+                    <tr key={'row-'+s.id} onDoubleClick={()=>abrirModal(s)} style={{cursor:'default'}}>
                       <td className="center"><input type="checkbox" className="cbx" checked={seleccionados.includes(s.id)} onChange={e=>toggleOne(s.id,e.target.checked)}/></td>
                       <td style={{fontWeight:700,color:'#374151',fontSize:13}}>{s.id}</td>
-                      <td><span className="badge" style={{background:ebc.bg,color:ebc.color,fontSize:11,padding:'3px 10px',borderRadius:20,fontWeight:600,whiteSpace:'nowrap'}}>{s.estadoSolicitud}</span></td>
+                      <td><span style={{fontSize:11,fontWeight:600,padding:'3px 8px',borderRadius:20,background:tipoP==='Público'?'#EAF2FB':tipoP==='Privado'?'#F3E5F5':'#F1F5F9',color:tipoP==='Público'?'#1E5799':tipoP==='Privado'?'#4A148C':'#64748b',whiteSpace:'nowrap'}}>{tipoP}</span></td>
+                      <td>{pc?<span style={{fontSize:11,fontWeight:600,padding:'3px 8px',borderRadius:20,background:pc.bg,color:pc.color,whiteSpace:'nowrap'}}>{pc.label}</span>:<span style={{fontSize:12,color:'#374151'}}>—</span>}</td>
+                      <td style={{fontFamily:'monospace',fontSize:11,color:'#475569',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.codigoProceso||'—'}</td>
+                      <td style={{fontSize:10,color:'#374151',whiteSpace:'normal' as const,wordBreak:'break-word' as const,lineHeight:1.4,verticalAlign:'middle',padding:'8px 10px',minWidth:160,maxWidth:260}}>{s.entidad||'—'}</td>
+                      <td style={{fontSize:11,color:'#374151',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{modalidad}</td>
+                      <td style={{fontSize:11,color:'#64748b',whiteSpace:'nowrap'}}>{fmtFechaCorta(s.fechaCierre||s.fechaVencimiento)}</td>
                       <td className="center">
-                        <button onClick={e=>{e.stopPropagation();abrirModal(s);}} title="Ver ficha detallada"
-                          style={{width:34,height:34,borderRadius:10,border:'1.5px solid #d1d5db',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#1a5ea8',transition:'all .15s'}}
+                        <button onClick={e=>{e.stopPropagation();setFichaAbierta(s);}} title="Ver ficha detallada"
+                          style={{width:30,height:30,borderRadius:8,border:'1.5px solid #d1d5db',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#1a5ea8',transition:'all .15s'}}
                           onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#EAF2FB';(e.currentTarget as HTMLButtonElement).style.borderColor='#1a5ea8';}}
                           onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';(e.currentTarget as HTMLButtonElement).style.borderColor='#d1d5db';}}>
-                          <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{width:17,height:17}}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                          <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{width:15,height:15}}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                         </button>
                       </td>
-                      <td><span style={{display:'inline-flex',alignItems:'center',fontSize:10.5,fontWeight:700,padding:'3px 9px',borderRadius:20,background:sqr.bg,color:sqr.color,whiteSpace:'nowrap',fontFamily:'monospace',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}} title={sqr.label}>{sqr.label}</span></td>
-                      <td style={{fontSize:12,color:'#64748b',whiteSpace:'nowrap'}}>{fmtFecha(s.createdAt)}</td>
-                      <td><span style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:20,background:tipoP==='Público'?'#EAF2FB':tipoP==='Privado'?'#F3E5F5':'#F1F5F9',color:tipoP==='Público'?'#1E5799':tipoP==='Privado'?'#4A148C':'#64748b',whiteSpace:'nowrap'}}>{tipoP}</span></td>
-                      <td style={{fontSize:12,color:'#374151'}}>{MMAP_MODALIDAD[s.modalidad]||s.modalidad||'—'}</td>
-                      <td>{pc?<span style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:20,background:pc.bg,color:pc.color,whiteSpace:'nowrap'}}>{pc.label}</span>:<span style={{fontSize:12,color:'#374151'}}>—</span>}</td>
-                      <td style={{maxWidth:248}} title={s.objeto||''}><div style={{fontSize:12,color:'#374151',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:248}}>{s.objeto||'—'}</div></td>
-                      <td style={{fontSize:12,fontWeight:500,color:'#1e293b'}}>{s.entidad||'—'}</td>
-                      <td style={{fontFamily:'monospace',fontSize:11,color:'#475569'}}>{s.codigoProceso||'—'}</td>
-                      <td style={{fontSize:12,fontWeight:600,color:'#15803d',whiteSpace:'nowrap'}}>{fmtV(s.valor)}</td>
-                      <td style={{fontSize:12,color:'#64748b'}}>{s.ciudad||s.departamento?.split(':')[0]?.trim()||'—'}</td>
-                      <td style={{fontSize:11,color:'#64748b'}}>{s.plataforma||s.aliasFuente||'—'}</td>
-                      <td style={{fontSize:11,color:'#64748b'}}>{s.usuarioRegistro||'—'}</td>
-                      <td style={{fontSize:11,color:'#64748b',whiteSpace:'nowrap'}}>{fmtFechaCorta(s.fechaCierre||s.fechaVencimiento)}</td>
                     </tr>
                   );
                 })
@@ -2174,8 +4213,21 @@ const cargar = useCallback(async () => {
           </table>
         </div>
         <div className="pagination-bar">
-          <span>{filtradas.length>0?`1 - ${filtradas.length} de ${solicitudes.length}`:`0 de ${solicitudes.length}`}</span>
-          {solicitudes.length>0&&<div className="pages"><button className="page-btn active">1</button></div>}
+          <span>
+            {filtradas.length > 0
+              ? `${(paginaSeguraSolicitudes - 1) * POR_PAGINA_SOLICITUDES + 1}–${Math.min(
+                  paginaSeguraSolicitudes * POR_PAGINA_SOLICITUDES,
+                  filtradas.length
+                )} de ${filtradas.length} solicitudes`
+              : `0 de ${solicitudes.length} solicitudes`}
+          </span>
+          <div className="pages">
+            <button className="page-btn" onClick={() => setPaginaSolicitudes((p) => Math.max(1, p - 1))} disabled={paginaSeguraSolicitudes <= 1}>Anterior</button>
+            {Array.from({ length: totalPagesSolicitudes }, (_, i) => i + 1).map((n) => (
+              <button key={n} className={`page-btn${n === paginaSeguraSolicitudes ? ' active' : ''}`} onClick={() => setPaginaSolicitudes(n)}>{n}</button>
+            ))}
+            <button className="page-btn" onClick={() => setPaginaSolicitudes((p) => Math.min(totalPagesSolicitudes, p + 1))} disabled={paginaSeguraSolicitudes >= totalPagesSolicitudes}>Siguiente</button>
+          </div>
         </div>
       </div>
     </div>
@@ -2251,7 +4303,7 @@ function ModuloSolicitudesEliminadas(){
                   <td style={{fontSize:12,fontWeight:500,color:'#1e293b'}}>{s.entidad||'—'}</td>
                   <td style={{fontFamily:'monospace',fontSize:11,color:'#475569'}}>{s.codigoProceso||'—'}</td>
                   <td style={{fontSize:12,color:'#374151'}}>{MMAP_MODALIDAD[s.modalidad]||s.modalidad||'—'}</td>
-                  <td style={{fontSize:12,fontWeight:600,color:'#15803d',whiteSpace:'nowrap'}}>{s.valor?new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(s.valor):'—'}</td>
+                  <td style={{fontSize:12,fontWeight:600,color:'#475569',whiteSpace:'nowrap'}}>{s.valor?new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(s.valor):'—'}</td>
                   <td style={{fontSize:11,color:'#64748b'}}>{s.plataforma||s.aliasFuente||'—'}</td>
                   <td style={{fontSize:11,color:'#64748b'}}>{s.deletedByUsuario||'—'}</td>
                   <td style={{fontSize:11,color:'#64748b'}}>{s.deletedByEmail||'—'}</td>
@@ -2364,7 +4416,7 @@ function ModuloExamenesMedicos(){
             <tbody>
               {cargando?<tr><td colSpan={EXAMEN_COLS.length+1} style={{textAlign:'center',padding:'40px 10px'}}><div style={{display:'inline-flex',alignItems:'center',gap:10,color:'#1E5799',fontSize:13}}><svg style={{animation:'spin 1s linear infinite',width:18,height:18}} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M4 4v5h5M20 20v-5h-5"/><path d="M4.055 9A8 8 0 0120 15.944M19.945 15A8 8 0 014 8.056"/></svg>Cargando exámenes…</div></td></tr>
               :rowsFiltrados.length===0?<tr><td colSpan={EXAMEN_COLS.length+1} style={{textAlign:'center',color:'#6b7280',padding:'40px 10px',fontSize:13}}>{total===0?'No hay datos. Usa los filtros o recarga.':'Sin resultados.'}</td></tr>
-              :rowsFiltrados.map((row,i)=>{const selec=seleccionados.has(i);const bg=badgeGrupo(String(row.cod_grupo_exam||''));return(<tr key={i} style={{background:selec?'#f0f7ff':'white',cursor:'default'}} onMouseOver={e=>{if(!selec)(e.currentTarget as HTMLTableRowElement).style.background='#f8fafc';}} onMouseOut={e=>{(e.currentTarget as HTMLTableRowElement).style.background=selec?'#f0f7ff':'white';}}><td className="center"><input type="checkbox" className="cbx" checked={selec} onChange={e=>toggleOne(i,e.target.checked)}/></td><td><span style={{display:'inline-flex',alignItems:'center',height:24,padding:'0 10px',borderRadius:20,fontSize:11,fontWeight:700,background:bg.bg,color:bg.color,whiteSpace:'nowrap'}}>{String(row.cod_grupo_exam||'—')}</span></td><td><span style={{fontSize:11,fontFamily:'monospace',fontWeight:700,padding:'3px 10px',borderRadius:6,background:'#0f172a',color:'white',whiteSpace:'nowrap',letterSpacing:'0.03em'}}>{String(row.cod_examen||'—')}</span></td><td style={{fontSize:12,color:'#64748b',fontFamily:'monospace'}}>{String(row.nit_proveedor||'—')}</td><td style={{fontSize:12,color:'#64748b',textAlign:'center' as const}}>{String(row.codmun||'—')}</td><td style={{fontSize:12,fontWeight:500,color:'#1e293b'}}>{String(row.ciudad||'—')}</td><td style={{maxWidth:320}} title={String(row.descripcion||'')}><div style={{fontSize:12,color:'#374151',lineHeight:1.45,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical' as const,overflow:'hidden'}}>{String(row.descripcion||'—')}</div></td><td style={{fontSize:12.5,fontWeight:700,color:'#15803d',whiteSpace:'nowrap',textAlign:'right' as const,paddingRight:16}}>{fmtCOP(row.vlr_costo)}</td></tr>);})}
+              :rowsFiltrados.map((row,i)=>{const selec=seleccionados.has(i);const bg=badgeGrupo(String(row.cod_grupo_exam||''));return(<tr key={i} style={{background:selec?'#f0f7ff':'white',cursor:'default'}} onMouseOver={e=>{if(!selec)(e.currentTarget as HTMLTableRowElement).style.background='#f8fafc';}} onMouseOut={e=>{(e.currentTarget as HTMLTableRowElement).style.background=selec?'#f0f7ff':'white';}}><td className="center"><input type="checkbox" className="cbx" checked={selec} onChange={e=>toggleOne(i,e.target.checked)}/></td><td><span style={{display:'inline-flex',alignItems:'center',height:24,padding:'0 10px',borderRadius:20,fontSize:11,fontWeight:700,background:bg.bg,color:bg.color,whiteSpace:'nowrap'}}>{String(row.cod_grupo_exam||'—')}</span></td><td><span style={{fontSize:11,fontFamily:'monospace',fontWeight:700,padding:'3px 10px',borderRadius:6,background:'#0f172a',color:'white',whiteSpace:'nowrap',letterSpacing:'0.03em'}}>{String(row.cod_examen||'—')}</span></td><td style={{fontSize:12,color:'#64748b',fontFamily:'monospace'}}>{String(row.nit_proveedor||'—')}</td><td style={{fontSize:12,color:'#64748b',textAlign:'center' as const}}>{String(row.codmun||'—')}</td><td style={{fontSize:12,fontWeight:500,color:'#1e293b'}}>{String(row.ciudad||'—')}</td><td style={{maxWidth:320}} title={String(row.descripcion||'')}><div style={{fontSize:12,color:'#374151',lineHeight:1.45,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical' as const,overflow:'hidden'}}>{String(row.descripcion||'—')}</div></td><td style={{fontSize:12.5,fontWeight:700,color:'#475569',whiteSpace:'nowrap',textAlign:'right' as const,paddingRight:16}}>{fmtCOP(row.vlr_costo)}</td></tr>);})}
             </tbody>
           </table>
         </div>
@@ -2416,6 +4468,7 @@ function ModuloProcesoNuevos({sesion,onModuleChange}:{sesion:Sesion;onModuleChan
   const [cargando,setCargando]=useState(true);
   const [error,setError]=useState('');
   const [busqueda,setBusqueda]=useState('');
+  const [busquedaInput,setBusquedaInput]=useState('');
   const [filtro,setFiltro]=useState<'hoy'|'ayer'|'semana'|'rango'>('hoy');
   const [desde,setDesde]=useState('');
   const [hasta,setHasta]=useState('');
@@ -2427,7 +4480,7 @@ function ModuloProcesoNuevos({sesion,onModuleChange}:{sesion:Sesion;onModuleChan
   const syncEnCursoRef = React.useRef(false);
   const intervaloSyncRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const cargar = useCallback(async (page:number) => {
+  const cargar = useCallback(async (page:number, q?:string) => {
     setCargando(true);
     setError('');
 
@@ -2440,7 +4493,8 @@ function ModuloProcesoNuevos({sesion,onModuleChange}:{sesion:Sesion;onModuleChan
 
       if (desde) params.set('desde', desde);
       if (hasta) params.set('hasta', hasta);
-      if (busqueda) params.set('query', busqueda);
+      const termino = q !== undefined ? q : busqueda;
+      if (termino) params.set('query', termino);
 
       const res = await fetch(`/api/procesos/nuevos?${params.toString()}`);
       const data = await res.json();
@@ -2550,96 +4604,45 @@ function ModuloProcesoNuevos({sesion,onModuleChange}:{sesion:Sesion;onModuleChan
 
   return(<>
     {detalle&&(
-      <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)setDetalle(null);}}>
-        <div style={{background:'white',borderRadius:12,width:'94vw',maxWidth:780,maxHeight:'92vh',display:'flex',flexDirection:'column',boxShadow:'0 20px 60px rgba(15,32,64,.2)',overflow:'hidden',border:'1px solid #e2e8f0'}}>
-          <div style={{background:'linear-gradient(135deg,#0d2d5e 0%,#1a5ea8 100%)',padding:'16px 22px',flexShrink:0}}>
-            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5,flexWrap:'wrap'}}>
-                  <span style={{fontSize:10,fontWeight:700,color:'rgba(255,255,255,.6)',letterSpacing:'0.07em'}}>PROCESO NUEVO DETECTADO</span>
-                  {detalle.aliasFuente&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:6,background:'rgba(255,255,255,.15)',color:'white',fontWeight:600}}>{portalC(detalle.aliasFuente,detalle.fuente||'').label}</span>}
-                  {detalle.perfil&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:perfilC(detalle.perfil).bg,color:perfilC(detalle.perfil).color,fontWeight:600}}>{perfilC(detalle.perfil).label}</span>}
-                </div>
-                <div style={{fontSize:15,fontWeight:700,color:'white',lineHeight:1.3,marginBottom:3}}>{detalle.entidad||'Sin entidad'}</div>
-                <div style={{fontSize:11,color:'rgba(255,255,255,.65)',fontFamily:'monospace'}}>{detalle.codigoProceso||''}</div>
-              </div>
-              <button onClick={()=>setDetalle(null)} style={{width:28,height:28,borderRadius:'50%',border:'1px solid rgba(255,255,255,.3)',background:'rgba(255,255,255,.1)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'white',flexShrink:0}}>
-                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M18 6L6 18M6 6l12 12"/></svg>
-              </button>
-            </div>
-          </div>
-          <div style={{background:'#EAF2FB',borderBottom:'1px solid #D0E4F3',padding:'10px 22px',flexShrink:0,display:'flex',alignItems:'center',gap:10}}>
-            <svg fill="none" stroke="#1E5799" strokeWidth={2} viewBox="0 0 24 24" style={{width:16,height:16,flexShrink:0}}><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-            <span style={{fontSize:12.5,color:'#1E5799',fontWeight:500}}>Detectado el <strong>{fmtFecha(detalle.fechaDeteccion)}</strong> — primera vez en Licycolba</span>
-          </div>
-          <div style={{overflowY:'auto',flex:1,padding:'16px 22px',display:'flex',flexDirection:'column',gap:12}}>
-            {detalle.objeto&&(
-              <div style={{background:'#FAFCFF',border:'1px solid #D0E4F3',borderRadius:8,padding:'12px 14px'}}>
-                <div style={{fontSize:10,fontWeight:700,color:'#1E5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',marginBottom:5}}>Objeto del proceso</div>
-                <p style={{margin:0,fontSize:13,color:'#1e293b',lineHeight:1.65}}>{detalle.objeto}</p>
-              </div>
-            )}
-            <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 14px'}}>
-              <div style={{fontSize:11,fontWeight:700,color:'#1E5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',paddingBottom:8,marginBottom:8,borderBottom:'1px solid #f1f5f9'}}>Información general</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',columnGap:28}}>
-                {[
-                  {label:'Entidad',value:<strong style={{fontWeight:600}}>{detalle.entidad||'—'}</strong>},
-                  {label:'Número del proceso',value:<span style={{fontFamily:'monospace'}}>{detalle.codigoProceso||'—'}</span>},
-                  {label:'Modalidad',value:MMAP_MODALIDAD[detalle.modalidad||'']||detalle.modalidad||'—'},
-                  {label:'Fuente / portal',value:detalle.fuente||'—'},
-                  {label:'Estado fuente',value:detalle.estadoFuente||'—'},
-                  ...(detalle.departamento?[{label:'Localización',value:detalle.departamento}]:[]),
-                  ...(detalle.valor?[{label:'Presupuesto oficial',value:<span style={{fontWeight:700,color:'#15803d'}}>{fmtV(detalle.valor)}</span>}]:[]),
-                  ...(detalle.perfil?[{label:'Perfil',value:<span style={{padding:'2px 10px',borderRadius:20,fontSize:11,fontWeight:600,background:perfilC(detalle.perfil).bg,color:perfilC(detalle.perfil).color}}>{perfilC(detalle.perfil).label}</span>}]:[]),
-                  {label:'Fecha publicación fuente',value:fmtFechaCorta(detalle.fechaPublicacion)},
-                  {label:'Fecha vencimiento',value:<span style={{color:'#dc2626',fontWeight:600}}>{fmtFechaCorta(detalle.fechaVencimiento)}</span>},
-                  {label:'Detectado por Licycolba',value:<span style={{color:'#1E5799',fontWeight:600}}>{fmtFecha(detalle.fechaDeteccion)}</span>},
-                ].map(({label,value},i)=>(
-                  <div key={i} style={{padding:'8px 0',borderBottom:'1px solid #f8fafc'}}>
-                    <div style={{fontSize:10,fontWeight:700,color:'#94a3b8',textTransform:'uppercase' as const,letterSpacing:'0.06em',marginBottom:3}}>{label}</div>
-                    <div style={{fontSize:12.5,color:'#1e293b'}}>{value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {(detalle.linkSecop||detalle.linkDetalle||detalle.linkSecopReg)&&(
-              <div style={{background:'white',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 14px'}}>
-                <div style={{fontSize:11,fontWeight:700,color:'#1E5799',textTransform:'uppercase' as const,letterSpacing:'0.07em',paddingBottom:8,marginBottom:8,borderBottom:'1px solid #f1f5f9'}}>Fuentes y enlaces</div>
-                {[{label:portalColor(detalle.aliasFuente||'',detalle.fuente||'').label,url:detalle.linkSecop},{label:'Registro',url:detalle.linkSecopReg},{label:'Detalle',url:detalle.linkDetalle}].filter(f=>f.url).map((f,i)=>(
-                  <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:i>0?'7px 0 0':'0'}}>
-                    <span style={{fontSize:11,fontWeight:600,color:'#475569',flexShrink:0,minWidth:60}}>{f.label}</span>
-                    <a href={f.url!} target="_blank" rel="noopener noreferrer" style={{fontSize:11.5,color:'#1E5799',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' as const}}>{f.url}</a>
-                    <CopiarLinkBtn url={f.url!}/>
-                  </div>
-                ))}
-              </div>
-            )}
-            {errorGestion&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 14px',color:'#dc2626',fontSize:12}}>⚠️ {errorGestion}</div>}
-          </div>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:8,padding:'12px 22px',borderTop:'1px solid #e2e8f0',background:'#FAFCFF',flexShrink:0}}>
-            {(detalle.linkSecop||detalle.linkDetalle)&&(
-              <a href={detalle.linkSecop||detalle.linkDetalle||''} target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:5,height:34,padding:'0 14px',borderRadius:8,border:'1px solid #D0E4F3',background:'white',color:'#1E5799',fontSize:12,fontWeight:500,textDecoration:'none'}}>
-                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                Abrir en portal
-              </a>
-            )}
-            <button onClick={()=>setDetalle(null)} style={{height:34,padding:'0 16px',borderRadius:8,border:'1px solid #e2e8f0',background:'white',color:'#374151',fontSize:12,fontFamily:'var(--font)',cursor:'pointer'}}>Cerrar</button>
-            <button onClick={()=>handleGestionar(detalle)} disabled={gestionando} style={{display:'inline-flex',alignItems:'center',gap:6,height:34,padding:'0 18px',borderRadius:8,background:gestionando?'#6b93c4':'#1E5799',color:'white',border:'none',fontSize:12,fontWeight:600,fontFamily:'var(--font)',cursor:gestionando?'not-allowed':'pointer'}}>
-              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:13,height:13}}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-              {gestionando?'Creando solicitud…':'Gestionar proceso'}
-            </button>
-          </div>
-        </div>
-      </div>
+      <ModalDetalleProceso
+        p={{
+          id: detalle.procesoId ?? detalle.id,
+          nombre: detalle.nombre ?? '',
+          codigoProceso: detalle.codigoProceso ?? '',
+          entidad: detalle.entidad ?? '',
+          objeto: detalle.objeto ?? '',
+          fuente: detalle.fuente ?? '',
+          aliasFuente: detalle.aliasFuente ?? '',
+          modalidad: detalle.modalidad ?? '',
+          perfil: detalle.perfil ?? '',
+          departamento: detalle.departamento ?? '',
+          estado: detalle.estadoFuente ?? '',
+          fechaPublicacion: detalle.fechaPublicacion ?? null,
+          fechaVencimiento: detalle.fechaVencimiento ?? null,
+          valor: detalle.valor ?? null,
+          linkDetalle: detalle.linkDetalle ?? '',
+          linkSecop: detalle.linkSecop ?? '',
+          linkSecopReg: detalle.linkSecopReg ?? '',
+          fuentes: [
+            ...(detalle.linkSecop ? [{ label: detalle.aliasFuente === 'S2' ? 'SECOP II' : detalle.aliasFuente === 'S1' ? 'SECOP I' : 'Portal', url: detalle.linkSecop }] : []),
+            ...(detalle.linkSecopReg ? [{ label: 'Registro', url: detalle.linkSecopReg }] : []),
+            ...(detalle.linkDetalle ? [{ label: 'Detalle', url: detalle.linkDetalle }] : []),
+          ],
+          totalCronogramas: 0,
+          totalDocumentos: 0,
+          cronogramas: [],
+          documentos: [],
+        }}
+        onClose={() => setDetalle(null)}
+      />
     )}
 
     <div className="content">
       <div className="page-header">
         <div className="page-title"><IcoBusqueda/><span>Procesos nuevos : {filtrados.length} / {total}</span></div>
         <div className="page-actions">
-          <input type="text" className="search-box" placeholder="Buscar…" value={busqueda} onChange={e=>setBusqueda(e.target.value)} disabled={cargando}/>
-          <button className="icon-btn" title="Actualizar" onClick={()=>cargar(1)} disabled={cargando}><IcoRefresh/></button>
-        </div>
+          <input type="text" className="search-box" placeholder="Buscar…" value={busquedaInput} onChange={e=>setBusquedaInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){setBusqueda(busquedaInput);setPagina(1);cargar(1,busquedaInput);}}} disabled={cargando}/>
+          <button className="icon-btn" title="Buscar" onClick={()=>{setBusqueda(busquedaInput);setPagina(1);cargar(1,busquedaInput);}} disabled={cargando}><IcoRefresh/></button>        </div>
       </div>
 
       <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:12,flexWrap:'wrap'}}>
@@ -2680,11 +4683,11 @@ function ModuloProcesoNuevos({sesion,onModuleChange}:{sesion:Sesion;onModuleChan
               <table>
                 <thead>
                   <tr>
-                    {[{w:148,label:'Fecha detección'},{w:80,label:'Fuente'},{w:130,label:'Código proceso'},{w:200,label:'Entidad / Cliente'},{w:300,label:'Objeto'},{w:140,label:'Modalidad'},{w:110,label:'Perfil'},{w:160,label:'Departamento'},{w:130,label:'Ppto. oficial'},{w:110,label:'F. publicación'},{w:90,label:'Acciones'}].map(({w,label})=>(
+                    {[{w:148,label:'Fecha detección'},{w:220,label:'Entidad / Cliente'},{w:340,label:'Objeto'},{w:110,label:'F. publicación'},{w:90,label:'Detalle'}].map(({w,label})=>(
                       <th key={label} style={{minWidth:w}}><div className="th-top">{label}</div></th>
                     ))}
                   </tr>
-                  <tr>{Array.from({length:11}).map((_,i)=><th key={i}><div style={{padding:'0 10px 5px',color:'#d1d5db',fontSize:11}}>≡</div></th>)}</tr>
+                <tr>{Array.from({length:5}).map((_,i)=><th key={i}><div style={{padding:'0 10px 5px',color:'#d1d5db',fontSize:11}}>≡</div></th>)}</tr>
                 </thead>
                 <tbody>
                   {filtrados.map(p=>{
@@ -2695,17 +4698,11 @@ function ModuloProcesoNuevos({sesion,onModuleChange}:{sesion:Sesion;onModuleChan
                         onMouseOver={e=>{(e.currentTarget as HTMLTableRowElement).style.background='#f8fafc';}}
                         onMouseOut={e=>{(e.currentTarget as HTMLTableRowElement).style.background='white';}}>
                         <td><div style={{display:'flex',flexDirection:'column',gap:1}}><span style={{fontSize:12,fontWeight:600,color:'#1E5799'}}>{fmtFechaCorta(p.fechaDeteccion)}</span><span style={{fontSize:10.5,color:'#94a3b8'}}>{new Date(p.fechaDeteccion).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}</span></div></td>
-                        <td><span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:28,height:28,borderRadius:'50%',background:port.bg,color:port.color,fontSize:10,fontWeight:700,flexShrink:0}}>{port.label}</span></td>
-                        <td style={{fontFamily:'monospace',fontSize:11,color:'#475569'}}>{p.codigoProceso||'—'}</td>
                         <td style={{fontSize:12,fontWeight:500,color:'#1e293b'}}>{p.entidad||'—'}</td>
-                        <td style={{maxWidth:300}}><div style={{fontSize:12,color:'#374151',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:300}} title={p.objeto||''}>{p.objeto||'—'}</div></td>
-                        <td style={{fontSize:12,color:'#374151'}}>{MMAP_MODALIDAD[p.modalidad||'']||p.modalidad||'—'}</td>
-                        <td>{pc2?<span style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:20,background:pc2.bg,color:pc2.color,whiteSpace:'nowrap'}}>{pc2.label}</span>:<span style={{color:'#94a3b8'}}>—</span>}</td>
-                        <td style={{fontSize:12,color:'#64748b'}}>{p.departamento?.split(':')[0]?.trim()||'—'}</td>
-                        <td style={{fontSize:12,fontWeight:600,color:'#15803d',whiteSpace:'nowrap'}}>{fmtV(p.valor)}</td>
+                        <td style={{maxWidth:340}}><div style={{fontSize:12,color:'#374151',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:340}} title={p.objeto||''}>{p.objeto||'—'}</div></td>
                         <td style={{fontSize:11,color:'#64748b',whiteSpace:'nowrap'}}>{fmtFechaCorta(p.fechaPublicacion)}</td>
                         <td style={{textAlign:'center' as const}}>
-                          <button onClick={()=>setDetalle(p)} title="Ver detalle y gestionar"
+                          <button onClick={()=>setDetalle(p)} title="Ver detalle"
                             style={{width:30,height:30,borderRadius:8,border:'1.5px solid #D0E4F3',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#1E5799',margin:'0 auto',transition:'all .15s'}}
                             onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#EAF2FB';(e.currentTarget as HTMLButtonElement).style.borderColor='#1E5799';}}
                             onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';(e.currentTarget as HTMLButtonElement).style.borderColor='#D0E4F3';}}>
@@ -2744,33 +4741,632 @@ function Placeholder({nombre}:{nombre:string}){
 /* ══════════════════════════════════════════════════════════════
    ROOT
 ══════════════════════════════════════════════════════════════ */
-export default function LicycolbaPage(){
-  const [sesionCargada,setSesionCargada]=useState(false);const[sesion,setSesion]=useState<Sesion|null>(null);
-  const [collapsed,setCollapsed]=useState(false);const[activeModule,setActiveModule]=useState('procesosNuevos');const[openAccordion,setOpenAccordion]=useState<string|null>('busqueda');
-  useEffect(()=>{const raw=sessionStorage.getItem('licycolba_sesion');if(raw){try{setSesion(JSON.parse(raw));}catch{setSesion(null);}}setSesionCargada(true);},[]);
-  const borrarSesion=()=>{sessionStorage.removeItem('licycolba_sesion');setSesion(null);};
-  const handleLogin=(s:Sesion)=>{sessionStorage.setItem('licycolba_sesion',JSON.stringify(s));setSesion(s);};
-  const handleSesionActualizada=(s:Sesion)=>{sessionStorage.setItem('licycolba_sesion',JSON.stringify(s));setSesion(s);};
-  const handleAccordionToggle=(key:string)=>{setOpenAccordion(prev=>prev===key?null:key);};
-  if(!sesionCargada)return null;
-  if(!sesion)return<PantallaLogin onLogin={handleLogin}/>;
-  const renderContent=()=>{
-    switch(activeModule){
-      case 'procesosNuevos':        return<ModuloProcesoNuevos sesion={sesion} onModuleChange={setActiveModule}/>;
-      case 'busquedaFinal':         return<ModuloBusquedaFinal onModuleChange={setActiveModule} sesion={sesion}/>
-      case 'solicitudesAbiertas':   return<ModuloSolicitudesComercial sesion={sesion}/>;
-      case 'solicitudesComercial':   return<ModuloSolicitudesComercial sesion={sesion}/>;
-      case 'solicitudesEspecializada': return<ModuloSolicitudesEspecializada sesion={sesion}/>;
-      case 'solicitudesRechazadas': return<ModuloSolicitudesRechazadas sesion={sesion}/>
-      case 'solicitudesEliminadas': return<ModuloSolicitudesEliminadas/>;
-      case 'solicitudesTodas':      return<ModuloSolicitudesTodas sesion={sesion} />;
-      case 'usuarios':              return<ModuloUsuarios sesion={sesion} onSesionActualizada={handleSesionActualizada}/>;
-      case 'usuariosEliminados':    return<ModuloUsuariosEliminados/>;
-      case 'examenesMedicos':       return<ModuloExamenesMedicos/>;
-      case 'dashboard':             return<Placeholder nombre="Dashboard"/>;
-      case 'trm':                   return<Placeholder nombre="TRM — Tasa de Cambio"/>;
-      default:                      return<Placeholder nombre={activeModule}/>;
+// ── Mapas de causas ──────────────────────────────────────────
+const CAUSAS_ESPECIFICAS: Record<string, string[]> = {
+  'Indicador': ['Endeudamiento','Razón de cobertura de intereses','Rentabilidad del activo','Rentabilidad del patrimonio','Capital de trabajo'],
+  'Condición habilitante': ['Limitado a Mipyme','Establecimiento de comercio'],
+  'Criterio técnico / operativo': ['Perfil del personal','Experiencia','Requisitos ponderables'],
+  'Condición del proceso': ['Presupuesto insuficiente','Proceso cancelado por la entidad','Excluido por sorteo'],
+  'Otro': ['Otro concepto'],
+};
+const TIPOS_CAUSA = Object.keys(CAUSAS_ESPECIFICAS);
+const ESTADOS_ASIGNACION = ['En observación','En proceso','En evaluación','Terminado'];
+const RESULTADOS_TERMINADO = ['Adjudicado','No adjudicado','No presentado'];
+
+function ModalGestionAsignacion({
+  sol,
+  asignacion,
+  onClose,
+  onGuardado,
+  sesion,
+}:{
+  sol:Solicitud;
+  asignacion:Record<string,unknown>;
+  onClose:()=>void;
+  onGuardado:(updated:Solicitud)=>void;
+  sesion:Sesion;
+}){
+  const [estadoAsig,setEstadoAsig]=React.useState(String(asignacion.estadoAsignacion||'En observación'));
+  const [tipoCausa,setTipoCausa]=React.useState(String(asignacion.tipoCausa||''));
+  const [causaEspecifica,setCausaEspecifica]=React.useState(String(asignacion.causaEspecifica||''));
+  const [resultado,setResultado]=React.useState(String(asignacion.resultadoFinal||'Pendiente'));
+  const [observacion,setObservacion]=React.useState(String(asignacion.observacionesGestion||''));
+  const [guardando,setGuardando]=React.useState(false);
+  const [error,setError]=React.useState('');
+  const [verDetalle,setVerDetalle]=React.useState(false);
+
+
+  const F='var(--font)';
+  const FC='#334155';
+  const FC_LABEL='#94a3b8';
+  const FC_DARK='#0f172a';
+  const baseText:React.CSSProperties={fontSize:13,color:FC,fontFamily:F,lineHeight:1.5};
+  const labelStyle:React.CSSProperties={fontSize:9,fontWeight:700,color:FC_LABEL,letterSpacing:'0.1em',textTransform:'uppercase' as const,fontFamily:F,marginBottom:4};
+  const iS:React.CSSProperties={width:'100%',height:38,border:'1.5px solid #e2e8f0',borderRadius:8,padding:'0 12px',fontSize:13,fontFamily:F,color:FC_DARK,outline:'none',background:'white',boxSizing:'border-box' as const};
+  const iSdis:React.CSSProperties={...iS,background:'#f8fafc',color:FC_LABEL,cursor:'not-allowed'};
+
+  const fmtFechaHora=(r:string|null)=>{if(!r)return'—';const d=new Date(r);return isNaN(d.getTime())?r:d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});};
+  const fmtV=(v:number|null)=>{if(v==null||isNaN(v)||v===0)return'—';return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(v);};
+
+  const esObservacion=estadoAsig==='En observación';
+  const esTerminado=estadoAsig==='Terminado';
+  const causasEsp=CAUSAS_ESPECIFICAS[tipoCausa]||[];
+
+  // Al cambiar tipo causa, resetear causa específica
+  const setTipo=(v:string)=>{setTipoCausa(v);setCausaEspecifica('');};
+
+  const pc=sol.perfil?perfilColor(sol.perfil):null;
+  const portalInfo=portalColor(sol.aliasFuente||'',sol.fuente||'');
+
+  const guardar=async()=>{
+    setError('');
+    if(esObservacion&&(!tipoCausa||!causaEspecifica)){
+      setError('Debes seleccionar tipo de causa y causa específica.');return;
     }
+    if(esTerminado&&(!resultado||resultado==='Pendiente')){
+      setError('Debes seleccionar un resultado.');return;
+    }
+    setGuardando(true);
+    try{
+      const ahora=new Date();
+      const pad=(n:number)=>String(n).padStart(2,'0');
+      const fechaStr=`${ahora.getFullYear()}-${pad(ahora.getMonth()+1)}-${pad(ahora.getDate())} ${pad(ahora.getHours())}:${pad(ahora.getMinutes())}:${pad(ahora.getSeconds())}`;
+
+      // Determinar nuevo estado
+      const nuevoEstado=esObservacion?'Cerrada':estadoAsig;
+
+      // Actualizar asignación en el array
+      const asigs=Array.isArray(sol.asignaciones)?[...sol.asignaciones as Array<Record<string,unknown>>]:[];
+      const idx=asigs.findIndex(a=>a.idAsignacion===asignacion.idAsignacion);
+      const updatedAsig:Record<string,unknown>={
+        ...asignacion,
+        estadoAsignacion:nuevoEstado,
+        tipoCausa:tipoCausa||null,
+        causaEspecifica:causaEspecifica||null,
+        resultadoFinal:esTerminado?resultado:'Pendiente',
+        observacionesGestion:observacion,
+        ultimaActualizacion:fechaStr,
+        gestionadoPor:sesion.usuario,
+      };
+      if(idx>=0)asigs[idx]=updatedAsig;
+
+      // Determinar nuevo estado de la solicitud
+      const nuevoEstadoSolicitud=nuevoEstado==='Cerrada'||nuevoEstado==='Terminado'?'Cerrada':'Asignada';
+
+      const res=await fetch('/api/solicitudes',{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          id:sol.id,
+          asignaciones:asigs,
+          estadoSolicitud:nuevoEstadoSolicitud,
+        }),
+      });
+      const data=await res.json();
+      if(!res.ok||!data.ok){setError(data.error??'Error al guardar.');return;}
+      onGuardado({...sol,...data.solicitud,asignaciones:asigs,estadoSolicitud:nuevoEstadoSolicitud});
+      onClose();
+    }catch{setError('No se pudo conectar.');}
+    finally{setGuardando(false);}
   };
-  return(<div className="app"><Sidebar collapsed={collapsed} onToggle={()=>setCollapsed(c=>!c)} activeModule={activeModule} onModuleChange={setActiveModule} openAccordion={openAccordion} onAccordionToggle={handleAccordionToggle} sesion={sesion} onLogout={borrarSesion}/><main className="main">{renderContent()}</main></div>);
+
+  return(
+      <>
+      {verDetalle&&<ModalDetallesProceso sol={sol} onClose={()=>setVerDetalle(false)}/>}
+    <div className="modal-overlay" style={{zIndex:1100}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{background:'white',borderRadius:12,width:'94vw',maxWidth:720,maxHeight:'90vh',display:'flex',flexDirection:'column' as const,boxShadow:'0 20px 60px rgba(15,32,64,.2)',overflow:'hidden',border:'1px solid #e2e8f0'}}>
+
+        {/* HEADER */}
+        <div style={{background:'white',borderBottom:'1px solid #f1f5f9',padding:'16px 24px',flexShrink:0}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div>
+              <div style={{fontSize:15,fontWeight:700,color:FC_DARK,fontFamily:F}}>Gestión de asignación</div>
+              <div style={{fontSize:11,color:FC_LABEL,fontFamily:F,marginTop:2}}>{String(asignacion.idAsignacion||'—')} · {sol.entidad||'—'}</div>
+            </div>
+            <button onClick={onClose} style={{width:30,height:30,borderRadius:8,border:'1.5px solid #e2e8f0',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#94a3b8'}}
+              onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#fef2f2';(e.currentTarget as HTMLButtonElement).style.color='#ef4444';}}
+              onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';(e.currentTarget as HTMLButtonElement).style.color='#94a3b8';}}>
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:12,height:12}}><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* BODY */}
+        <div style={{overflowY:'auto',flex:1,padding:'20px 24px',display:'flex',flexDirection:'column' as const,gap:20}}>
+
+          {error&&<div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'10px 14px',color:'#dc2626',fontSize:12,fontFamily:F}}>⚠️ {error}</div>}
+
+          {/* Datos del proceso */}
+          <div style={{background:'#f8fafc',border:'1px solid #f1f5f9',borderRadius:10,padding:'14px 16px'}}>
+            <div style={{fontSize:10,fontWeight:700,color:FC_LABEL,letterSpacing:'0.1em',textTransform:'uppercase' as const,fontFamily:F,marginBottom:12}}>Datos del proceso</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 24px'}}>
+              {[
+                {label:'N° Solicitud', value:`#${sol.id}`},
+                {label:'Tipo de proceso', value:portalInfo.label},
+                {label:'Entidad del grupo', value:pc?.label||'—'},
+                {label:'Ciudad', value:sol.ciudad||sol.departamento||'—'},
+                {label:'ID SQR', value:sol.sqrNumero||'—'},
+                {label:'No. proceso', value:sol.codigoProceso||'—'},
+                {label:'Presupuesto oficial', value:fmtV(sol.valor)},
+                {label:'Registrado por', value:sol.usuarioRegistro||'—'},
+              ].map(({label,value},i)=>(
+                <div key={i}>
+                  <div style={labelStyle}>{label}</div>
+                  <div style={{...baseText,fontSize:12.5}}>{value}</div>
+                </div>
+              ))}
+              {sol.objeto&&(
+                <div style={{gridColumn:'1/-1'}}>
+                  <div style={labelStyle}>Descripción</div>
+                  <div style={{...baseText,fontSize:12.5,lineHeight:1.6}}>
+                    {sol.objeto.charAt(0).toUpperCase()+sol.objeto.slice(1).toLowerCase()}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+  
+
+<div style={{marginTop:12,paddingTop:12,borderTop:'1px solid #f1f5f9'}}>
+  <button
+    onClick={()=>setVerDetalle(true)}
+    style={{display:'inline-flex',alignItems:'center',gap:8,height:34,padding:'0 16px',borderRadius:8,border:'1.5px solid #1e5799',background:'white',color:'#1e5799',fontSize:12.5,fontWeight:600,fontFamily:F,cursor:'pointer',transition:'all .15s'}}
+    onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#eff6ff';}}
+    onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';}}>
+    <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{width:14,height:14}}><path d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V8.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0014.586 2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+    Ver datos del proceso
+  </button>
+</div>
+
+          {/* Gestión */}
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:FC_DARK,fontFamily:F,marginBottom:14,paddingBottom:8,borderBottom:'1px solid #f1f5f9'}}>Gestión de la asignación</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'14px 20px'}}>
+
+              {/* Estado asignación */}
+              <div>
+                <div style={labelStyle}>Estado de asignación *</div>
+                <select style={iS} value={estadoAsig} onChange={e=>setEstadoAsig(e.target.value)}>
+                  {ESTADOS_ASIGNACION.map(e=><option key={e} value={e}>{e}</option>)}
+                </select>
+              </div>
+
+              {/* Analista */}
+              <div>
+                <div style={labelStyle}>Analista asignado</div>
+                <input style={iSdis} value={String(asignacion.analistaAsignado||'—')} disabled/>
+              </div>
+
+              {/* Resultado */}
+              <div>
+                <div style={labelStyle}>Resultado {esTerminado?'*':''}</div>
+                {esTerminado?(
+                  <select style={iS} value={resultado} onChange={e=>setResultado(e.target.value)}>
+                    <option value="">— Seleccione —</option>
+                    {RESULTADOS_TERMINADO.map(r=><option key={r} value={r}>{r}</option>)}
+                  </select>
+                ):(
+                  <input style={iSdis} value="Pendiente" disabled/>
+                )}
+              </div>
+
+              {/* Tipo de causa — solo En observación */}
+              {esObservacion&&(
+                <div>
+                  <div style={labelStyle}>Tipo de causa *</div>
+                  <select style={iS} value={tipoCausa} onChange={e=>setTipo(e.target.value)}>
+                    <option value="">— Seleccione —</option>
+                    {TIPOS_CAUSA.map(t=><option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Causa específica — solo En observación y cuando hay tipo */}
+              {esObservacion&&tipoCausa&&(
+                <div style={{gridColumn:'1/-1'}}>
+                  <div style={labelStyle}>Causa específica *</div>
+                  <select style={iS} value={causaEspecifica} onChange={e=>setCausaEspecifica(e.target.value)}>
+                    <option value="">— Seleccione —</option>
+                    {causasEsp.map(c=><option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Observación */}
+              <div style={{gridColumn:'1/-1'}}>
+                <div style={labelStyle}>Observaciones de gestión</div>
+                <textarea
+                  style={{...iS,height:80,padding:'8px 12px',resize:'vertical' as const,lineHeight:1.5}}
+                  value={observacion}
+                  onChange={e=>setObservacion(e.target.value)}
+                  placeholder="Ingrese observaciones sobre la gestión…"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Aviso si es observación */}
+          {esObservacion&&tipoCausa&&causaEspecifica&&(
+            <div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'10px 14px',fontSize:12,color:'#9a3412',fontFamily:F}}>
+              ⚠️ Al guardar, la asignación quedará en estado <strong>Cerrada</strong> con causa: <strong>{tipoCausa} → {causaEspecifica}</strong>
+            </div>
+          )}
+
+          {/* Aviso si es terminado */}
+          {esTerminado&&(
+            <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:8,padding:'10px 14px',fontSize:12,color:'#14532d',fontFamily:F}}>
+              ✓ Al guardar con estado <strong>Terminado</strong>, la solicitud quedará cerrada.
+            </div>
+          )}
+        </div>
+
+        {/* FOOTER */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 24px',borderTop:'1px solid #f1f5f9',background:'white',flexShrink:0}}>
+          <div style={{fontSize:11,color:FC_LABEL,fontFamily:F}}>
+            Asignado por: {String(asignacion.asignadoPor||'—')} · {String(asignacion.fechaAsignacion||'—').slice(0,10)}
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={onClose} disabled={guardando}
+              style={{height:36,padding:'0 16px',borderRadius:8,border:'1.5px solid #e2e8f0',background:'white',color:'#475569',fontSize:12.5,fontFamily:F,cursor:'pointer'}}>
+              Cancelar
+            </button>
+            <button onClick={guardar} disabled={guardando}
+              style={{height:36,padding:'0 20px',borderRadius:8,background:guardando?'#6b93c4':'#1e5799',color:'white',border:'none',fontSize:12.5,fontWeight:600,fontFamily:F,cursor:guardando?'not-allowed':'pointer',transition:'all .15s'}}
+              onMouseOver={e=>{if(!guardando)(e.currentTarget as HTMLButtonElement).style.background='#174a85';}}
+              onMouseOut={e=>{if(!guardando)(e.currentTarget as HTMLButtonElement).style.background='#1e5799';}}>
+              {guardando?'Guardando…':'Guardar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+      </>
+  );
+}
+/* ══════════════════════════════════════════════════════════════
+   MÓDULO ASIGNACIONES PENDIENTES
+   Muestra solicitudes con asignaciones en estado 'Pendiente'
+══════════════════════════════════════════════════════════════ */
+function ModuloAsignacionesPendientes({sesion}:{sesion:Sesion}){
+  const [solicitudes,setSolicitudes]=React.useState<Solicitud[]>([]);
+  const [cargando,setCargando]=React.useState(true);
+  const [error,setError]=React.useState('');
+  const [busqueda,setBusqueda]=React.useState('');
+  const [modalProceso,setModalProceso]=React.useState<Solicitud|null>(null);
+  const [seleccionados,setSeleccionados]=React.useState<number[]>([]);
+  const [modalGestion,setModalGestion]=React.useState<{sol:Solicitud;asig:Record<string,unknown>}|null>(null);
+
+
+  const cargar=React.useCallback(async()=>{
+    setCargando(true);setError('');
+    try{
+      const res=await fetch('/api/solicitudes?estadoSolicitud=Asignada&limit=200');
+      const data=await res.json();
+      if(!res.ok)throw new Error(data.error||'Error');
+      const lista:Solicitud[]=Array.isArray(data.solicitudes)?data.solicitudes:Array.isArray(data)?data:[];
+      const pendientes=lista.filter(s=>{
+        const asigs=Array.isArray(s.asignaciones)?s.asignaciones as Array<Record<string,unknown>>:[];
+        return asigs.some(a=>String(a.estadoAsignacion||'').toLowerCase()==='pendiente');
+      });
+      setSolicitudes(pendientes);
+    }catch(e){setError(e instanceof Error?e.message:'Error al cargar');}
+    finally{setCargando(false);}
+  },[]);
+
+  React.useEffect(()=>{cargar();},[cargar]);
+
+  const fmtFecha=(r:string|null)=>{if(!r)return'—';const d=new Date(r);return isNaN(d.getTime())?r:d.toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit',year:'numeric'});};
+  const fmtV=(v:number|null)=>{if(v==null||isNaN(v)||v===0)return'—';return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(v);};
+
+  const filtradas=solicitudes.filter(s=>{
+    if(!busqueda)return true;
+    const q=busqueda.toLowerCase();
+    return(
+      (s.entidad||'').toLowerCase().includes(q)||
+      (s.codigoProceso||'').toLowerCase().includes(q)||
+      (s.objeto||'').toLowerCase().includes(q)||
+      (s.ciudad||'').toLowerCase().includes(q)
+    );
+  });
+
+  const getAnalista=(sol:Solicitud)=>{
+    const asigs=Array.isArray(sol.asignaciones)?sol.asignaciones as Array<Record<string,unknown>>:[];
+    const pendiente=asigs.filter(a=>String(a.estadoAsignacion||'').toLowerCase()==='pendiente').pop();
+    return pendiente?{
+      nombre:String(pendiente.analistaAsignado||'—'),
+      cargo:String(pendiente.analistaCargo||''),
+      fecha:String(pendiente.fechaAsignacion||'').slice(0,10),
+      id:String(pendiente.idAsignacion||''),
+    }:null;
+  };
+
+  const getDiasRestantes=(fecha:string|null)=>{
+    if(!fecha)return null;
+    const diff=new Date(fecha).getTime()-Date.now();
+    return Math.ceil(diff/(1000*60*60*24));
+  };
+
+  const sqrDisplay=(s:Solicitud)=>{
+    if(s.sqrError)return{label:'Error SQR',bg:'#fef2f2',color:'#dc2626'};
+    if(s.sqrNumero)return{label:s.sqrNumero,bg:'#E8F5E9',color:'#475569'};
+    return{label:'Sin SQR',bg:'#f1f5f9',color:'#94a3b8'};
+  };
+
+  const todosMarcados=filtradas.length>0&&filtradas.every(s=>seleccionados.includes(s.id));
+  const toggleAll=(c:boolean)=>setSeleccionados(c?filtradas.map(s=>s.id):[]);
+  const toggleOne=(id:number,c:boolean)=>setSeleccionados(prev=>c?[...prev,id]:prev.filter(x=>x!==id));
+
+  const COLS=[
+    {w:72,label:'N°'},
+    {w:120,label:'Estado'},
+    {w:52,label:'Ficha'},
+    {w:90,label:'SQR'},
+    {w:148,label:'Fecha asignación'},
+    {w:120,label:'Entidad grupo'},
+    {w:200,label:'Cliente'},
+    {w:135,label:'No. proceso'},
+    {w:248,label:'Descripción'},
+    {w:160,label:'Analista asignado'},
+    {w:114,label:'Vencimiento'},
+    {w:140,label:'Presupuesto'},
+  ];
+
+  if(cargando)return<div className="content"><div className="module-status">Cargando asignaciones…</div></div>;
+  if(error)return<div className="content"><div className="module-status error">{error}</div></div>;
+
+  return(
+    <>
+      {modalGestion&&<ModalGestionAsignacion
+      sol={modalGestion.sol}
+      asignacion={modalGestion.asig}
+      sesion={sesion}
+      onClose={()=>setModalGestion(null)}
+      onGuardado={(updated)=>{setSolicitudes(prev=>prev.map(s=>s.id===updated.id?updated:s));setModalGestion(null);cargar();}}
+      />}
+      {modalProceso&&<ModalProceso
+        sol={modalProceso}
+        sesion={sesion}
+        variante="COMERCIAL"
+        onClose={()=>setModalProceso(null)}
+        onGuardado={(updated)=>{setSolicitudes(prev=>prev.map(s=>s.id===updated.id?updated:s));setModalProceso(null);}}
+      />}
+
+      <div className="content">
+        <div className="page-header">
+          <div className="page-title">
+            <IcoAsignaciones/>
+            <span>Asignaciones pendientes : {filtradas.length} / {solicitudes.length}</span>
+          </div>
+          <div className="page-actions">
+            <input type="text" className="search-box" placeholder="Buscar…" value={busqueda} onChange={e=>setBusqueda(e.target.value)}/>
+            <button className="icon-btn" title="Actualizar" onClick={()=>{setBusqueda('');cargar();}}><IcoRefresh/></button>
+          </div>
+        </div>
+
+        <div className="table-card">
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{width:36}}>
+                    <div className="th-top">
+                      <input type="checkbox" className="cbx" checked={todosMarcados} onChange={e=>toggleAll(e.target.checked)}/>
+                    </div>
+                  </th>
+                  {COLS.map(({w,label})=><th key={label} style={{minWidth:w}}><div className="th-top">{label}</div></th>)}
+                </tr>
+                <tr><th/>{COLS.map(({label})=><th key={label}><div style={{padding:'0 10px 5px',color:'#d1d5db',fontSize:11}}>≡</div></th>)}</tr>
+              </thead>
+              <tbody>
+                {filtradas.length===0
+                  ?<tr><td colSpan={COLS.length+1} style={{textAlign:'center',color:'#6b7280',padding:'36px 10px',fontSize:13}}>
+                    No hay asignaciones pendientes.
+                  </td></tr>
+                  :filtradas.map(s=>{
+                    const ebc=estadoSolicitudColor(s.estadoSolicitud||'');
+                    const pc=s.perfil?perfilColor(s.perfil):null;
+                    const sqr=sqrDisplay(s);
+                    const analista=getAnalista(s);
+                    const dias=getDiasRestantes(s.fechaVencimiento||null);
+                    return (
+                    <tr key={s.id} onDoubleClick={()=>{const asigs=Array.isArray(s.asignaciones)?s.asignaciones as Array<Record<string,unknown>>:[];const asig=asigs[asigs.length-1];if(asig)setModalGestion({sol:s,asig});}} style={{cursor:'default'}}>
+                        <td className="center"><input type="checkbox" className="cbx" checked={seleccionados.includes(s.id)} onChange={e=>toggleOne(s.id,e.target.checked)}/></td>
+                        <td style={{fontWeight:700,color:'#374151',fontSize:13}}>{s.id}</td>
+                        <td><span className="badge" style={{background:ebc.bg,color:ebc.color,fontSize:11,padding:'3px 10px',borderRadius:20,fontWeight:600,whiteSpace:'nowrap'}}>{s.estadoSolicitud}</span></td>
+                        <td className="center">
+                          <button onClick={e=>{e.stopPropagation();const asigs=Array.isArray(s.asignaciones)?s.asignaciones as Array<Record<string,unknown>>:[];const asig=asigs[asigs.length-1];if(asig)setModalGestion({sol:s,asig});}} title="Ver ficha"
+                            style={{width:34,height:34,borderRadius:10,border:'1.5px solid #d1d5db',background:'white',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#1a5ea8',transition:'all .15s'}}
+                            onMouseOver={e=>{(e.currentTarget as HTMLButtonElement).style.background='#EAF2FB';(e.currentTarget as HTMLButtonElement).style.borderColor='#1a5ea8';}}
+                            onMouseOut={e=>{(e.currentTarget as HTMLButtonElement).style.background='white';(e.currentTarget as HTMLButtonElement).style.borderColor='#d1d5db';}}>
+                            <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{width:17,height:17}}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                          </button>
+                        </td>
+                        <td><span style={{display:'inline-flex',alignItems:'center',fontSize:10.5,fontWeight:700,padding:'3px 9px',borderRadius:20,background:sqr.bg,color:sqr.color,whiteSpace:'nowrap',fontFamily:'monospace'}}>{sqr.label}</span></td>
+                        <td style={{fontSize:12,color:'#64748b',whiteSpace:'nowrap'}}>{analista?.fecha||'—'}</td>
+                        <td>{pc?<span style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:20,background:pc.bg,color:pc.color,whiteSpace:'nowrap'}}>{pc.label}</span>:<span style={{fontSize:12,color:'#374151'}}>—</span>}</td>
+                        <td style={{fontSize:12,fontWeight:500,color:'#1e293b'}}>{s.entidad||'—'}</td>
+                        <td style={{fontFamily:'monospace',fontSize:11,color:'#475569'}}>{s.codigoProceso||'—'}</td>
+                        <td style={{maxWidth:248}} title={s.objeto||''}>
+                          <div style={{fontSize:12,color:'#374151',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:248}}>
+                            {s.objeto?(s.objeto.charAt(0).toUpperCase()+s.objeto.slice(1).toLowerCase()):'—'}
+                          </div>
+                        </td>
+                        <td style={{fontSize:12,color:'#1e293b'}}>
+                          {analista?(
+                            <div>
+                              <div style={{fontWeight:600}}>{analista.nombre}</div>
+                              <div style={{fontSize:10.5,color:'#94a3b8'}}>{analista.id}</div>
+                            </div>
+                          ):'—'}
+                        </td>
+                        <td style={{whiteSpace:'nowrap'}}>
+                          {s.fechaVencimiento?(
+                            <div>
+                              <div style={{fontSize:12,color:'#1e293b'}}>{fmtFecha(s.fechaVencimiento)}</div>
+                              {dias!==null&&<div style={{fontSize:10.5,fontWeight:600,color:dias<0?'#dc2626':dias<=3?'#d97706':'#64748b'}}>
+                                {dias<0?'Vencido':dias===0?'Hoy':dias===1?'Mañana':`${dias} días`}
+                              </div>}
+                            </div>
+                          ):'—'}
+                        </td>
+                        <td style={{fontSize:12,fontWeight:600,color:'#475569',whiteSpace:'nowrap'}}>{fmtV(s.valor)}</td>
+                      </tr>
+                    );
+                  })
+                }
+              </tbody>
+            </table>
+          </div>
+          <div className="pagination-bar">
+            <span>{filtradas.length} de {solicitudes.length} asignaciones</span>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function LicycolbaPage() {
+  const [sesionCargada, setSesionCargada] = useState(false);
+  const [sesion, setSesion] = useState<Sesion | null>(null);
+
+  const [collapsed, setCollapsed] = useState(false);
+  const [activeModule, setActiveModule] = useState('procesosNuevos');
+  const [openAccordion, setOpenAccordion] = useState<string | null>('busqueda');
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem('licycolba_sesion');
+
+    if (raw) {
+      try {
+        setSesion(JSON.parse(raw));
+      } catch {
+        setSesion(null);
+      }
+    }
+
+    setSesionCargada(true);
+  }, []);
+
+  const borrarSesion = () => {
+    sessionStorage.removeItem('licycolba_sesion');
+    setSesion(null);
+  };
+
+  const handleLogin = (s: Sesion) => {
+    sessionStorage.setItem('licycolba_sesion', JSON.stringify(s));
+    setSesion(s);
+  };
+
+  const handleSesionActualizada = (s: Sesion) => {
+    sessionStorage.setItem('licycolba_sesion', JSON.stringify(s));
+    setSesion(s);
+  };
+
+  const handleAccordionToggle = (key: string) => {
+    setOpenAccordion((prev) => (prev === key ? null : key));
+  };
+
+  if (!sesionCargada) return null;
+
+  if (!sesion) {
+    return <PantallaLogin onLogin={handleLogin} />;
+  }
+
+  const renderContent = () => {
+  switch (activeModule) {
+    case 'procesosNuevos':
+      return (
+        <ModuloProcesoNuevos
+          sesion={sesion}
+          onModuleChange={setActiveModule}
+        />
+      );
+
+    case 'busquedaFinal':
+      return (
+        <ModuloBusquedaFinal
+          onModuleChange={setActiveModule}
+          sesion={sesion}
+        />
+      );
+
+    case 'solicitudesAbiertas':
+      return <ModuloSolicitudesComercial sesion={sesion} />;
+
+    case 'solicitudesComercial':
+      return <ModuloSolicitudesComercial sesion={sesion} />;
+
+    case 'solicitudesEspecializada':
+      return <ModuloSolicitudesEspecializada sesion={sesion} />;
+
+    case 'solicitudesRechazadas':
+      return <ModuloSolicitudesRechazadas sesion={sesion} />;
+
+    case 'solicitudesEliminadas':
+      return <ModuloSolicitudesEliminadas />;
+
+    case 'solicitudesTodas':
+      return <ModuloSolicitudesTodas sesion={sesion} />;
+
+    case 'usuarios':
+      return (
+        <ModuloUsuarios
+          sesion={sesion}
+          onSesionActualizada={handleSesionActualizada}
+        />
+      );
+
+    case 'usuariosEliminados':
+      return <ModuloUsuariosEliminados />;
+
+    case 'examenesMedicos':
+      return <ModuloExamenesMedicos />;
+
+    case 'dashboard':
+      return <Placeholder nombre="Dashboard" />;
+
+    case 'trm':
+      return <Placeholder nombre="TRM — Tasa de Cambio" />;
+
+      case 'asignacionesPendientes':
+  return (
+    <ModuloAsignacionesPendientes sesion={sesion}/>
+  );
+
+case 'asignacionesTerminadas':
+  return <Placeholder nombre="Asignaciones terminadas" />;
+
+    default:
+      return <Placeholder nombre={activeModule} />;
+  }
+};
+
+return (
+  <div className="app">
+    <Sidebar
+      collapsed={collapsed}
+      onToggle={() => setCollapsed((c) => !c)}
+      activeModule={activeModule}
+      onModuleChange={setActiveModule}
+      openAccordion={openAccordion}
+      onAccordionToggle={handleAccordionToggle}
+      sesion={sesion}
+      onLogout={borrarSesion}
+    />
+
+    <main className="main">
+      <LicyTopbar
+        moduloActual={activeModule}
+        sesion={sesion}
+        onLogout={borrarSesion}
+        onBuscarGlobal={(texto) => console.log('búsqueda global:', texto)}
+      />
+
+      <div className="main-content-scroll">
+        {renderContent()}
+      </div>
+    </main>
+  </div>
+);
 }

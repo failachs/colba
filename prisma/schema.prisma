@@ -17,6 +17,12 @@ model User {
   rol          String
   estado       String
   firmaDigital String?
+
+  // Campos organizacionales del usuario
+  proceso      String?
+  subproceso   String?
+  uen          String?
+
   passwordHash String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -34,12 +40,39 @@ model DeletedUser {
   rol              String
   estado           String
   firmaDigital     String?
+
+  // Campos organizacionales conservados al eliminar usuario
+  proceso          String?
+  subproceso       String?
+  uen              String?
+
   createdAt        DateTime
   updatedAt        DateTime
   deletedAt        DateTime @default(now())
   deletedByUsuario String?
   deletedByEmail   String?
   deletedByCargo   String?
+}
+
+model Notificacion {
+  id            Int       @id @default(autoincrement())
+  tipo          String    // 'proceso_nuevo' | 'cambio_cronograma' | 'documento_nuevo' | 'cambio_estado'
+  titulo        String
+  descripcion   String?
+  codigoProceso String?
+  procesoId     Int?
+  entidad       String?
+  perfil        String?
+  leida         Boolean   @default(false)
+  datos         Json?
+  creadoEn      DateTime  @default(now())
+  leidaEn       DateTime?
+
+  @@index([leida])
+  @@index([tipo])
+  @@index([perfil])
+  @@index([creadoEn])
+  @@index([codigoProceso])
 }
 
 model Proceso {
@@ -178,7 +211,6 @@ model ProcesoSnapshotSecop {
   @@index([creadoEn])
 }
 
-// ── NUEVO: Registro de procesos detectados por primera vez ──
 model ProcesoNuevo {
   id               Int       @id @default(autoincrement())
   procesoId        Int?
@@ -228,7 +260,17 @@ model Solicitud {
   linkDetalle      String?
   linkSecop        String?
   linkSecopReg     String?
+
+  // Comercial o Especializada
   origenSolicitud  String    @default("Comercial")
+
+  // Campos adicionales para solicitudes especializadas
+  nitContacto        String?
+  personaContacto   String?
+  telefonoContacto  String?
+  direccionContacto String?
+  correoContacto    String?
+
   estadoSolicitud  String    @default("En revisión")
   observacion      String?
   ciudad           String?
@@ -262,6 +304,7 @@ model Solicitud {
   @@index([estadoSolicitud])
   @@index([codigoProceso])
   @@index([procesoSourceKey])
+  @@index([origenSolicitud])
   @@index([sqrNumero])
   @@index([sqrCreada])
   @@index([sqrCerrada])
@@ -296,7 +339,17 @@ model DeletedSolicitud {
   sede             String?
   plataforma       String?
   fechaCierre      DateTime?
+
+  // Comercial o Especializada
   origenSolicitud  String    @default("Comercial")
+
+  // Campos adicionales para solicitudes especializadas
+  nitContacto        String?
+  personaContacto   String?
+  telefonoContacto  String?
+  direccionContacto String?
+  correoContacto    String?
+
   procStep         Int       @default(0)
   procData         Json      @default("{}")
   obsData          Json      @default("[]")
@@ -324,4 +377,6 @@ model DeletedSolicitud {
   deletedAt        DateTime @default(now())
   deletedByUsuario String?
   deletedByEmail   String?
+
+  @@index([origenSolicitud])
 }

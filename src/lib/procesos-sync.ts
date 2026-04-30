@@ -1,3 +1,8 @@
+/**
+ * src/lib/procesos-sync.ts
+ * Sincronización inteligente con Licitaciones.Info
+ */
+
 import crypto from 'crypto';
 import prisma from '@/lib/prisma';
 import {
@@ -15,8 +20,14 @@ export interface SyncMetrics {
   recibidos: number;
   creados: number;
   actualizados: number;
+  sinCambios: number;
   ignorados: number;
   nuevosRegistrados: number;
+  cambiosEstado: number;
+  cambiosFechaCierre: number;
+  cambiosValor: number;
+  documentosNuevos: number;
+  cronogramasActualizados: number;
   errores: string[];
   duracionMs: number;
 }
@@ -25,23 +36,20 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function hashProceso(p: ReturnType<typeof normalizarProceso>): string {
   const campos = [
-    p.id ?? '',
     p.codigoProceso ?? '',
-    p.aliasFuente ?? '',
     p.nombre ?? '',
     p.entidad ?? '',
     p.objeto ?? '',
+    p.fuente ?? '',
+    p.aliasFuente ?? '',
+    p.modalidad ?? '',
+    p.perfil ?? '',
+    p.departamento ?? '',
     p.estado ?? '',
     p.fechaPublicacion ?? '',
     p.fechaVencimiento ?? '',
     String(p.valor ?? ''),
-    p.linkDetalle ?? '',
-    p.linkSecop ?? '',
-    p.linkSecopReg ?? '',
-    String(p.totalDocumentos ?? 0),
-    String(p.totalCronogramas ?? 0),
   ].join('|');
-
   return crypto.createHash('md5').update(campos).digest('hex');
 }
 
@@ -50,11 +58,9 @@ function extraerLote(resp: Record<string, unknown>): LiciProcesoRaw[] {
     const val = resp[key];
     if (Array.isArray(val) && val.length > 0) return val as LiciProcesoRaw[];
   }
-
   for (const val of Object.values(resp)) {
     if (Array.isArray(val) && val.length > 0) return val as LiciProcesoRaw[];
   }
-
   return [];
 }
 
@@ -73,51 +79,400 @@ function parseFecha(fecha?: string | null): Date | null {
 
 function parseValor(valor: unknown): number | null {
   if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
-
   if (typeof valor === 'string') {
-    const limpio = valor
-      .replace(/[^\d,.-]/g, '')
-      .replace(/\./g, '')
-      .replace(',', '.');
+    const limpio = valor.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
     const n = Number(limpio);
     return Number.isFinite(n) ? n : null;
   }
-
   return null;
 }
 
 function buildSourceKey(raw: LiciProcesoRaw, p: ReturnType<typeof normalizarProceso>) {
   const externalId = String(p.id ?? '').trim();
-  if (externalId) return `ext:${externalId}`;
-
-  const linkDetalle = String(p.linkDetalle ?? '').trim();
-  if (linkDetalle) return `detalle:${linkDetalle}`;
-
-  const linkSecop = String(p.linkSecop ?? '').trim();
-  if (linkSecop) return `secop:${linkSecop}`;
-
-  const linkSecopReg = String(p.linkSecopReg ?? '').trim();
-  if (linkSecopReg) return `secopreg:${linkSecopReg}`;
-
+  if (externalId && externalId !== '0') return `ext:${externalId}`;
   const codigo = String(p.codigoProceso ?? '').trim();
   const alias = String(p.aliasFuente ?? '').trim().toUpperCase();
   const entidad = String(p.entidad ?? '').trim();
   const fecha = String(p.fechaPublicacion ?? '').trim();
   const nombre = String(p.nombre ?? '').trim();
-
   if (codigo || alias || entidad || fecha || nombre) {
     return `mix:${codigo}||${alias}||${entidad}||${fecha}||${nombre}`;
   }
-
   return `raw:${crypto.createHash('md5').update(JSON.stringify(raw)).digest('hex')}`;
 }
 
+// ── Helper para respetar linkDetalle manual ──────────────────
+function resolverLinkDetalle(enBD: string | null | undefined, deAPI: string | null | undefined): string | null {
+  const bdVal = (enBD ?? '').trim();
+  if (bdVal) return bdVal;
+  const apiVal = (deAPI ?? '').trim();
+  return apiVal || null;
+}
+
+// ── Sincronizar documentos sin duplicar ──────────────────────
+async function sincronizarDocumentos(
+  procesoId: number,
+  codigoProceso: string | null,
+  entidad: string | null,
+  perfil: string | null,
+  sourceKey: string,
+  documentos: Array<{ nombre: string; ruta: string; url: string }>
+): Promise<number> {
+  let nuevos = 0;
+  for (const doc of documentos) {
+    const url = doc.url || doc.ruta || '';
+    const nombre = doc.nombre || '';
+    if (!url && !nombre) continue;
+    try {
+      const existing = await prisma.procesoDocumentoSecop.findFirst({
+        where: {
+          procesoId,
+          OR: [
+            ...(url ? [{ urlDocumento: url }] : []),
+            ...(nombre ? [{ nombre }] : []),
+          ],
+        },
+      });
+      if (!existing) {
+        const nuevo = await prisma.procesoDocumentoSecop.create({
+          data: {
+            procesoId,
+            nombre: nombre || 'Sin nombre',
+            urlDocumento: url || null,
+            fechaDetectado: new Date(),
+          },
+        });
+        nuevos++;
+        console.log('[sync] documento nuevo', codigoProceso, nombre);
+        await prisma.notificacion.create({
+          data: {
+            tipo: 'documento_nuevo',
+            titulo: 'Nuevo documento detectado',
+            descripcion: `Se detectó un nuevo documento en el proceso ${codigoProceso ?? '—'}: ${nombre}.`,
+            codigoProceso,
+            procesoId,
+            entidad,
+            perfil,
+            datos: {
+              sourceKey,
+              documentoId: nuevo.id,
+              nombreDocumento: nombre,
+              urlDocumento: url || null,
+            },
+          },
+        });
+      }
+    } catch (err) {
+      console.warn('[sync] error documento', codigoProceso, nombre, err instanceof Error ? err.message : err);
+    }
+  }
+  return nuevos;
+}
+
+// ── Sincronizar cronograma ───────────────────────────────────
+async function sincronizarCronograma(
+  procesoId: number,
+  codigoProceso: string | null,
+  cronogramas: Array<{ nombre: string; fecha: string }>
+): Promise<boolean> {
+  if (cronogramas.length === 0) return false;
+  try {
+    const existentes = await prisma.procesoCronogramaSecop.findMany({
+      where: { procesoId },
+      select: { evento: true, valorTexto: true },
+    });
+    const hashExistente = crypto
+      .createHash('md5')
+      .update(JSON.stringify(existentes.map(e => `${e.evento}|${e.valorTexto}`).sort()))
+      .digest('hex');
+    const hashNuevo = crypto
+      .createHash('md5')
+      .update(JSON.stringify(cronogramas.map(c => `${c.nombre}|${c.fecha}`).sort()))
+      .digest('hex');
+    if (hashExistente === hashNuevo) return false;
+    await prisma.procesoCronogramaSecop.deleteMany({ where: { procesoId } });
+    await prisma.procesoCronogramaSecop.createMany({
+      data: cronogramas.map((cr, i) => ({
+        procesoId,
+        evento: cr.nombre || `Etapa ${i + 1}`,
+        valorTexto: cr.fecha || null,
+        orden: i,
+      })),
+    });
+    console.log('[sync] cronograma actualizado', codigoProceso);
+    return true;
+  } catch (err) {
+    console.warn('[sync] error cronograma', codigoProceso, err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+// ── Función principal de upsert por proceso ──────────────────
+async function upsertProceso(
+  raw: LiciProcesoRaw,
+  metrics: SyncMetrics
+): Promise<void> {
+  const p = normalizarProceso(raw);
+  const sourceKey = buildSourceKey(raw, p);
+  const hashContenido = hashProceso(p);
+
+  const codigoProceso = String(p.codigoProceso ?? '').trim() || null;
+  const entidad = p.entidad ?? null;
+  const perfil = p.perfil ?? null;
+
+  const existing = await prisma.proceso.findUnique({
+    where: { sourceKey },
+    select: {
+      id: true,
+      hashContenido: true,
+      linkDetalle: true,
+      estadoFuente: true,
+      fechaVencimiento: true,
+      valor: true,
+    },
+  });
+
+  // Respetar linkDetalle manual — si BD tiene valor real, no sobreescribir
+  const linkDetalleProtegido = resolverLinkDetalle(existing?.linkDetalle, p.linkDetalle);
+
+  const dataBase = {
+    sourceKey,
+    externalId: p.id && p.id !== 0 ? String(p.id) : null,
+    codigoProceso,
+    nombre: p.nombre ?? null,
+    entidad,
+    objeto: p.objeto ?? null,
+    fuente: p.fuente ?? null,
+    aliasFuente: String(p.aliasFuente ?? '').trim().toUpperCase() || null,
+    modalidad: p.modalidad ?? null,
+    perfil,
+    departamento: p.departamento ?? null,
+    estadoFuente: p.estado ?? null,
+    fechaPublicacion: parseFecha(p.fechaPublicacion),
+    fechaVencimiento: parseFecha(p.fechaVencimiento),
+    valor: parseValor(p.valor),
+    linkDetalle: linkDetalleProtegido,
+    linkSecop: null,
+    linkSecopReg: p.linkSecopReg ?? null,
+    rawJson: JSON.stringify(raw),
+    hashContenido,
+    lastSyncedAt: new Date(),
+  };
+
+  if (!existing) {
+    // ── PROCESO NUEVO ──────────────────────────────────────
+    const creado = await prisma.proceso.create({ data: dataBase });
+    metrics.creados++;
+    console.log('[sync] proceso creado', codigoProceso);
+
+    try {
+      await prisma.procesoNuevo.upsert({
+        where: { sourceKey },
+        update: {},
+        create: {
+          procesoId: creado.id,
+          sourceKey,
+          codigoProceso: dataBase.codigoProceso,
+          nombre: dataBase.nombre,
+          entidad: dataBase.entidad,
+          objeto: dataBase.objeto,
+          fuente: dataBase.fuente,
+          aliasFuente: dataBase.aliasFuente,
+          modalidad: dataBase.modalidad,
+          perfil: dataBase.perfil,
+          departamento: dataBase.departamento,
+          estadoFuente: dataBase.estadoFuente,
+          fechaPublicacion: dataBase.fechaPublicacion,
+          fechaVencimiento: dataBase.fechaVencimiento,
+          valor: dataBase.valor,
+          linkDetalle: dataBase.linkDetalle,
+          linkSecop: null,
+          linkSecopReg: dataBase.linkSecopReg,
+          fechaDeteccion: new Date(),
+        },
+      });
+      metrics.nuevosRegistrados++;
+    } catch (err) {
+      console.warn('[sync] error ProcesoNuevo', codigoProceso, err instanceof Error ? err.message : err);
+    }
+
+    await prisma.notificacion.create({
+      data: {
+        tipo: 'proceso_nuevo',
+        titulo: 'Nuevo proceso detectado',
+        descripcion: `Se detectó un nuevo proceso: ${codigoProceso ?? '—'}.`,
+        codigoProceso,
+        procesoId: creado.id,
+        entidad,
+        perfil,
+        datos: {
+          sourceKey,
+          fechaPublicacion: dataBase.fechaPublicacion?.toISOString() ?? null,
+        },
+      },
+    });
+
+    const docsNuevos = await sincronizarDocumentos(
+      creado.id, codigoProceso, entidad, perfil, sourceKey, p.documentos
+    );
+    metrics.documentosNuevos += docsNuevos;
+
+    if (p.cronogramas.length > 0) {
+      await prisma.procesoCronogramaSecop.createMany({
+        data: p.cronogramas.map((cr, i) => ({
+          procesoId: creado.id,
+          evento: cr.nombre || `Etapa ${i + 1}`,
+          valorTexto: cr.fecha || null,
+          orden: i,
+        })),
+      });
+    }
+
+    await prisma.proceso.update({
+      where: { id: creado.id },
+      data: {
+        totalDocumentos: docsNuevos,
+        totalCronogramas: p.cronogramas.length,
+      },
+    });
+
+  } else if (existing.hashContenido !== hashContenido) {
+    // ── PROCESO ACTUALIZADO ────────────────────────────────
+    // Re-leer linkDetalle desde BD para asegurar valor más reciente
+    const procesoActual = await prisma.proceso.findUnique({
+      where: { id: existing.id },
+      select: { linkDetalle: true },
+    });
+
+    const linkDetalleActual = resolverLinkDetalle(procesoActual?.linkDetalle, p.linkDetalle);
+
+    console.log('[sync] linkDetalle check', codigoProceso, {
+      enBD: procesoActual?.linkDetalle,
+      deAPI: p.linkDetalle,
+      queSeGuarda: linkDetalleActual,
+    });
+
+    await prisma.proceso.update({
+      where: { id: existing.id },
+      data: {
+        ...dataBase,
+        linkDetalle: linkDetalleActual,
+      },
+    });
+    metrics.actualizados++;
+    console.log('[sync] proceso actualizado', codigoProceso);
+
+    // Notificación cambio estado
+    const estadoAnterior = existing.estadoFuente;
+    const estadoNuevo = dataBase.estadoFuente;
+    if (estadoAnterior && estadoNuevo && estadoAnterior !== estadoNuevo) {
+      metrics.cambiosEstado++;
+      console.log('[sync] cambio estado', codigoProceso, estadoAnterior, estadoNuevo);
+      await prisma.notificacion.create({
+        data: {
+          tipo: 'cambio_estado',
+          titulo: 'Cambio de estado en proceso',
+          descripcion: `El proceso ${codigoProceso ?? '—'} cambió de "${estadoAnterior}" a "${estadoNuevo}".`,
+          codigoProceso,
+          procesoId: existing.id,
+          entidad,
+          perfil,
+          datos: { sourceKey, estadoAnterior, estadoNuevo },
+        },
+      });
+    }
+
+    // Notificación cambio fecha
+    const fechaAnterior = existing.fechaVencimiento?.toISOString() ?? null;
+    const fechaNueva = dataBase.fechaVencimiento?.toISOString() ?? null;
+    if (fechaAnterior !== fechaNueva) {
+      metrics.cambiosFechaCierre++;
+      console.log('[sync] cambio fecha cierre', codigoProceso, fechaAnterior, fechaNueva);
+      await prisma.notificacion.create({
+        data: {
+          tipo: 'cambio_fecha_cierre',
+          titulo: 'Cambio de fecha de cierre',
+          descripcion: `El proceso ${codigoProceso ?? '—'} cambió su fecha de vencimiento.`,
+          codigoProceso,
+          procesoId: existing.id,
+          entidad,
+          perfil,
+          datos: { sourceKey, fechaAnterior, fechaNueva },
+        },
+      });
+    }
+
+    // Notificación cambio valor
+    const valorAnterior = existing.valor;
+    const valorNuevo = dataBase.valor;
+    if (valorAnterior !== valorNuevo && valorNuevo !== null) {
+      metrics.cambiosValor++;
+      console.log('[sync] cambio valor', codigoProceso, valorAnterior, valorNuevo);
+      await prisma.notificacion.create({
+        data: {
+          tipo: 'cambio_valor',
+          titulo: 'Cambio de valor del proceso',
+          descripcion: `El proceso ${codigoProceso ?? '—'} cambió su valor.`,
+          codigoProceso,
+          procesoId: existing.id,
+          entidad,
+          perfil,
+          datos: { sourceKey, valorAnterior, valorNuevo },
+        },
+      });
+    }
+
+    // Documentos y cronograma
+    const docsNuevos = await sincronizarDocumentos(
+      existing.id, codigoProceso, entidad, perfil, sourceKey, p.documentos
+    );
+    metrics.documentosNuevos += docsNuevos;
+
+    const cronoCambio = await sincronizarCronograma(
+      existing.id, codigoProceso, p.cronogramas
+    );
+    if (cronoCambio) {
+      metrics.cronogramasActualizados++;
+      await prisma.notificacion.create({
+        data: {
+          tipo: 'cambio_cronograma',
+          titulo: 'Cambio en cronograma',
+          descripcion: `El proceso ${codigoProceso ?? '—'} actualizó su cronograma.`,
+          codigoProceso,
+          procesoId: existing.id,
+          entidad,
+          perfil,
+          datos: { sourceKey },
+        },
+      });
+    }
+
+    // Actualizar totales
+    const totalDocs = await prisma.procesoDocumentoSecop.count({ where: { procesoId: existing.id } });
+    const totalCron = await prisma.procesoCronogramaSecop.count({ where: { procesoId: existing.id } });
+    await prisma.proceso.update({
+      where: { id: existing.id },
+      data: { totalDocumentos: totalDocs, totalCronogramas: totalCron },
+    });
+
+  } else {
+    // ── SIN CAMBIOS ────────────────────────────────────────
+    await prisma.proceso.update({
+      where: { id: existing.id },
+      data: { lastSyncedAt: new Date() },
+    });
+    metrics.sinCambios++;
+    metrics.ignorados++;
+    console.log('[sync] proceso sin cambios', codigoProceso);
+  }
+}
+
+// ── Función exportable principal ─────────────────────────────
 export async function sincronizarProcesos(params?: {
   maxResultados?: number;
   limitPorPagina?: number;
 }): Promise<SyncMetrics> {
   const inicio = Date.now();
-
   const metrics: SyncMetrics = {
     ok: false,
     totalApi: 0,
@@ -125,8 +480,14 @@ export async function sincronizarProcesos(params?: {
     recibidos: 0,
     creados: 0,
     actualizados: 0,
+    sinCambios: 0,
     ignorados: 0,
     nuevosRegistrados: 0,
+    cambiosEstado: 0,
+    cambiosFechaCierre: 0,
+    cambiosValor: 0,
+    documentosNuevos: 0,
+    cronogramasActualizados: 0,
     errores: [],
     duracionMs: 0,
   };
@@ -166,27 +527,17 @@ export async function sincronizarProcesos(params?: {
           })) as Record<string, unknown>;
 
           const lote = extraerLote(resp);
-
           if (pag === 1) {
             metrics.totalApi += extraerTotal(resp, lote.length);
           }
 
-          const etiquetados = lote.map((item) => ({
-            ...item,
-            _perfil: nombrePerfil,
-          }));
-
+          const etiquetados = lote.map((item) => ({ ...item, _perfil: nombrePerfil }));
           acumulados.push(...etiquetados);
           metrics.paginasConsultadas++;
 
-          if (
-            lote.length < paramsApi.limit ||
-            pag >= 100 ||
-            acumulados.length >= maxResultados
-          ) {
+          if (lote.length < paramsApi.limit || pag >= 100 || acumulados.length >= maxResultados) {
             break;
           }
-
           pag++;
           await sleep(350);
         } catch (err) {
@@ -205,103 +556,18 @@ export async function sincronizarProcesos(params?: {
 
     for (const raw of procesosRaw) {
       try {
-        const p = normalizarProceso(raw);
-        const sourceKey = buildSourceKey(raw, p);
-        const hashContenido = hashProceso(p);
-
-        const existing = await prisma.proceso.findUnique({
-          where: { sourceKey },
-          select: {
-            id: true,
-            hashContenido: true,
-          },
-        });
-
-        const data = {
-          sourceKey,
-          externalId: p.id ? String(p.id) : null,
-          codigoProceso: String(p.codigoProceso ?? '').trim() || null,
-          nombre: p.nombre ?? null,
-          entidad: p.entidad ?? null,
-          objeto: p.objeto ?? null,
-          fuente: p.fuente ?? null,
-          aliasFuente: String(p.aliasFuente ?? '').trim().toUpperCase() || null,
-          modalidad: p.modalidad ?? null,
-          perfil: p.perfil ?? null,
-          departamento: p.departamento ?? null,
-          estadoFuente: p.estado ?? null,
-          fechaPublicacion: parseFecha(p.fechaPublicacion),
-          fechaVencimiento: parseFecha(p.fechaVencimiento),
-          valor: parseValor(p.valor),
-          linkDetalle: p.linkDetalle ?? null,
-          linkSecop: p.linkSecop ?? null,
-          linkSecopReg: p.linkSecopReg ?? null,
-          totalCronogramas: p.totalCronogramas ?? 0,
-          totalDocumentos: p.totalDocumentos ?? 0,
-          rawJson: JSON.stringify(raw),
-          hashContenido,
-          lastSyncedAt: new Date(),
-        };
-
-        if (!existing) {
-          const creado = await prisma.proceso.create({ data });
-          metrics.creados++;
-
-          try {
-            await prisma.procesoNuevo.upsert({
-              where: { sourceKey },
-              update: {},
-              create: {
-                procesoId: creado.id,
-                sourceKey,
-                codigoProceso: data.codigoProceso,
-                nombre: data.nombre,
-                entidad: data.entidad,
-                objeto: data.objeto,
-                fuente: data.fuente,
-                aliasFuente: data.aliasFuente,
-                modalidad: data.modalidad,
-                perfil: data.perfil,
-                departamento: data.departamento,
-                estadoFuente: data.estadoFuente,
-                fechaPublicacion: data.fechaPublicacion,
-                fechaVencimiento: data.fechaVencimiento,
-                valor: data.valor,
-                linkDetalle: data.linkDetalle,
-                linkSecop: data.linkSecop,
-                linkSecopReg: data.linkSecopReg,
-                fechaDeteccion: new Date(),
-              },
-            });
-            metrics.nuevosRegistrados++;
-          } catch (errNuevo) {
-            const msg = `ProcesoNuevo upsert (${sourceKey}): ${errNuevo instanceof Error ? errNuevo.message : String(errNuevo)}`;
-            metrics.errores.push(msg);
-            console.error('[sync][ProcesoNuevo]', msg);
-          }
-        } else if (existing.hashContenido !== hashContenido) {
-          await prisma.proceso.update({
-            where: { id: existing.id },
-            data,
-          });
-          metrics.actualizados++;
-        } else {
-          await prisma.proceso.update({
-            where: { id: existing.id },
-            data: { lastSyncedAt: new Date() },
-          });
-          metrics.ignorados++;
-        }
+        await upsertProceso(raw, metrics);
       } catch (err) {
-        const msg = `Persistencia proceso: ${err instanceof Error ? err.message : String(err)}`;
+        const msg = `Proceso: ${err instanceof Error ? err.message : String(err)}`;
         metrics.errores.push(msg);
-        console.error('[sync]', msg);
+        console.warn('[sync] error proceso', msg);
       }
     }
 
     metrics.ok = metrics.errores.length === 0;
     metrics.duracionMs = Date.now() - inicio;
     return metrics;
+
   } catch (err) {
     metrics.errores.push(err instanceof Error ? err.message : String(err));
     metrics.ok = false;

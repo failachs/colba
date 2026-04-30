@@ -46,3 +46,13 @@ next-env.d.ts
 # playwright / secop
 .playwright/
 secop-detalle.png
+
+# local database
+dev.db
+*.db
+*.db-journal
+prisma/dev.db
+
+# debug files
+debug-*.json
+debug-*.txt

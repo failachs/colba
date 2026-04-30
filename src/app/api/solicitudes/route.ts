@@ -1,60 +1,85 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-/* ── Helpers ── */
+/* ── Helpers ──────────────────────────────────────────────────────────────── */
+
 function parseIntSafe(v: string | null, fb: number) {
   const n = Number.parseInt(v ?? '', 10);
   return Number.isNaN(n) ? fb : n;
 }
+
 function str(v: unknown, fb = '') {
   return v != null ? String(v) : fb;
 }
+
 function toDate(v: unknown): Date | null {
   if (!v) return null;
   const d = new Date(String(v));
   return Number.isNaN(d.getTime()) ? null : d;
 }
+
 function toDecimal(v: unknown): number | null {
   if (v == null || v === '') return null;
-  const n = Number(v);
+
+  if (typeof v === 'number') {
+    return Number.isNaN(v) ? null : v;
+  }
+
+  const limpio = String(v).replace(/[^0-9.-]/g, '');
+  const n = Number(limpio);
+
   return Number.isNaN(n) ? null : n;
 }
-function toJsonValue(v: unknown) {
-  if (v === null || v === undefined) return {};
-  return v;
+
+function normalizarOrigenSolicitud(v: unknown): 'Comercial' | 'Especializada' {
+  const valor = str(v).trim().toLowerCase();
+
+  if (valor.includes('especial')) {
+    return 'Especializada';
+  }
+
+  return 'Comercial';
 }
-function toJsonArray(v: unknown) {
-  if (Array.isArray(v)) return v;
-  return [];
-}
+
 function serializeSolicitud(s: Record<string, unknown>) {
   return {
     ...s,
     valor: s.valor != null ? Number(s.valor) : null,
+
     fechaPublicacion:
       s.fechaPublicacion instanceof Date
         ? s.fechaPublicacion.toISOString()
         : (s.fechaPublicacion ?? null),
+
     fechaVencimiento:
       s.fechaVencimiento instanceof Date
         ? s.fechaVencimiento.toISOString()
         : (s.fechaVencimiento ?? null),
+
     fechaCierre:
       s.fechaCierre instanceof Date
         ? s.fechaCierre.toISOString()
         : (s.fechaCierre ?? null),
+
     fechaAperturaSqr:
       s.fechaAperturaSqr instanceof Date
         ? s.fechaAperturaSqr.toISOString()
         : (s.fechaAperturaSqr ?? null),
+
     fechaCierreSqr:
       s.fechaCierreSqr instanceof Date
         ? s.fechaCierreSqr.toISOString()
         : (s.fechaCierreSqr ?? null),
+
     createdAt:
-      s.createdAt instanceof Date ? s.createdAt.toISOString() : s.createdAt,
+      s.createdAt instanceof Date
+        ? s.createdAt.toISOString()
+        : s.createdAt,
+
     updatedAt:
-      s.updatedAt instanceof Date ? s.updatedAt.toISOString() : s.updatedAt,
+      s.updatedAt instanceof Date
+        ? s.updatedAt.toISOString()
+        : s.updatedAt,
   };
 }
 
@@ -209,7 +234,10 @@ async function abrirSqr(objeto: string): Promise<string> {
   );
 }
 
-async function cerrarSqr(novedadId: string | number, observacion: string): Promise<void> {
+async function cerrarSqr(
+  novedadId: string | number,
+  observacion: string
+): Promise<void> {
   const resp = await fetch('http://grupocolba.com/service/public/api/sqr/cerrar', {
     method: 'POST',
     headers: {
@@ -240,17 +268,28 @@ async function cerrarSqr(novedadId: string | number, observacion: string): Promi
   console.log('RESPUESTA PARSEADA CIERRE SQR:', parsed);
 }
 
-// ── GET /api/solicitudes ─────────────────────────────────────────────────────
+/* ── GET /api/solicitudes ─────────────────────────────────────────────────── */
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
+
     const estado = searchParams.get('estado')?.trim() ?? '';
+    const origen = searchParams.get('origen')?.trim() ?? '';
     const page = Math.max(1, parseIntSafe(searchParams.get('page'), 1));
     const limit = Math.min(200, Math.max(1, parseIntSafe(searchParams.get('limit'), 50)));
     const q = searchParams.get('q')?.trim() ?? '';
 
     const where: Record<string, unknown> = {};
-    if (estado) where.estadoSolicitud = estado;
+
+    if (estado) {
+      where.estadoSolicitud = estado;
+    }
+
+    if (origen) {
+      where.origenSolicitud = normalizarOrigenSolicitud(origen);
+    }
+
     if (q) {
       where.OR = [
         { codigoProceso: { contains: q, mode: 'insensitive' } },
@@ -260,6 +299,11 @@ export async function GET(req: NextRequest) {
         { departamento: { contains: q, mode: 'insensitive' } },
         { usuarioRegistro: { contains: q, mode: 'insensitive' } },
         { sqrNumero: { contains: q, mode: 'insensitive' } },
+        { origenSolicitud: { contains: q, mode: 'insensitive' } },
+        { nitContacto: { contains: q, mode: 'insensitive' } },
+        { personaContacto: { contains: q, mode: 'insensitive' } },
+        { telefonoContacto: { contains: q, mode: 'insensitive' } },
+        { correoContacto: { contains: q, mode: 'insensitive' } },
       ];
     }
 
@@ -274,16 +318,17 @@ export async function GET(req: NextRequest) {
     ]);
 
     return NextResponse.json({
-  ok: true,
-  total,
-  page,
-  limit,
-  solicitudes: registros.map((s: unknown) =>
-    serializeSolicitud(s as Record<string, unknown>)
-  ),
-});
+      ok: true,
+      total,
+      page,
+      limit,
+      solicitudes: registros.map((s: unknown) =>
+        serializeSolicitud(s as Record<string, unknown>)
+      ),
+    });
   } catch (err) {
     console.error('[GET /api/solicitudes]', err);
+
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : 'Error interno' },
       { status: 500 }
@@ -291,7 +336,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ── POST /api/solicitudes ────────────────────────────────────────────────────
+/* ── POST /api/solicitudes ────────────────────────────────────────────────── */
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -318,6 +364,14 @@ export async function POST(req: NextRequest) {
       ciudad,
       sede,
       plataforma,
+      origenSolicitud,
+
+      nitContacto,
+      personaContacto,
+      telefonoContacto,
+      direccionContacto,
+      correoContacto,
+
       fechaCierre,
       procStep,
       procData,
@@ -342,6 +396,7 @@ export async function POST(req: NextRequest) {
     }
 
     const procesoSourceKey = `${str(codigoProceso).trim()}||${str(aliasFuente).toUpperCase()}`;
+
     const plataformaFinal =
       plataforma ||
       (str(aliasFuente).toUpperCase() === 'S2'
@@ -349,6 +404,8 @@ export async function POST(req: NextRequest) {
         : str(aliasFuente).toUpperCase() === 'S1'
           ? 'SECOP I'
           : '');
+
+    const origenSolicitudFinal = normalizarOrigenSolicitud(origenSolicitud);
 
     const solicitud = await prisma.solicitud.create({
       data: {
@@ -374,6 +431,15 @@ export async function POST(req: NextRequest) {
         ciudad: str(ciudad) || str(departamento).split(':').pop()?.trim() || '',
         sede: str(sede),
         plataforma: plataformaFinal,
+
+        origenSolicitud: origenSolicitudFinal,
+
+        nitContacto: str(nitContacto) || null,
+        personaContacto: str(personaContacto) || null,
+        telefonoContacto: str(telefonoContacto) || null,
+        direccionContacto: str(direccionContacto) || null,
+        correoContacto: str(correoContacto) || null,
+
         fechaCierre: toDate(fechaCierre),
         procStep: procStep != null ? Number(procStep) : 0,
         procData: procData ?? {},
@@ -466,6 +532,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     console.error('[POST /api/solicitudes]', err);
+
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : 'Error interno' },
       { status: 500 }
@@ -473,21 +540,37 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ── PATCH /api/solicitudes ───────────────────────────────────────────────────
+/* ── PATCH /api/solicitudes ───────────────────────────────────────────────── */
+
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
+
     const {
       id,
+      entidad,
+      objeto,
+      modalidad,
+      perfil,
+      ciudad,
+      plataforma,
+      fechaCierre,
+      estadoSolicitud,
+      origenSolicitud,
+
+      nitContacto,
+      personaContacto,
+      telefonoContacto,
+      direccionContacto,
+      correoContacto,
+
       procStep,
       procData,
-      estadoSolicitud,
       revisor,
       aprobador,
       asignaciones,
       obsData,
       docData,
-      fechaCierre,
       observacion,
       resultadoFinal,
       causalCierre,
@@ -497,7 +580,10 @@ export async function PATCH(req: NextRequest) {
     } = body;
 
     if (!id) {
-      return NextResponse.json({ ok: false, error: 'id es requerido' }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: 'id es requerido' },
+        { status: 400 }
+      );
     }
 
     const solicitudActual = await prisma.solicitud.findUnique({
@@ -505,19 +591,39 @@ export async function PATCH(req: NextRequest) {
     });
 
     if (!solicitudActual) {
-      return NextResponse.json({ ok: false, error: 'Solicitud no encontrada' }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: 'Solicitud no encontrada' },
+        { status: 404 }
+      );
     }
 
-    const data: Record<string, unknown> = { updatedAt: new Date() };
+    const data: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+
+    if (entidad != null) data.entidad = str(entidad);
+    if (objeto != null) data.objeto = str(objeto);
+    if (modalidad != null) data.modalidad = str(modalidad);
+    if (perfil != null) data.perfil = str(perfil);
+    if (ciudad != null) data.ciudad = str(ciudad);
+    if (plataforma != null) data.plataforma = str(plataforma);
+    if (fechaCierre != null) data.fechaCierre = toDate(fechaCierre);
+    if (estadoSolicitud) data.estadoSolicitud = str(estadoSolicitud);
+    if (origenSolicitud != null) data.origenSolicitud = normalizarOrigenSolicitud(origenSolicitud);
+
+    if (nitContacto !== undefined) data.nitContacto = str(nitContacto) || null;
+    if (personaContacto !== undefined) data.personaContacto = str(personaContacto) || null;
+    if (telefonoContacto !== undefined) data.telefonoContacto = str(telefonoContacto) || null;
+    if (direccionContacto !== undefined) data.direccionContacto = str(direccionContacto) || null;
+    if (correoContacto !== undefined) data.correoContacto = str(correoContacto) || null;
+
     if (procStep != null) data.procStep = Number(procStep);
     if (procData != null) data.procData = procData;
-    if (estadoSolicitud) data.estadoSolicitud = str(estadoSolicitud);
     if (revisor != null) data.revisor = str(revisor);
     if (aprobador != null) data.aprobador = str(aprobador);
     if (asignaciones != null) data.asignaciones = asignaciones;
     if (obsData != null) data.obsData = obsData;
     if (docData != null) data.docData = docData;
-    if (fechaCierre != null) data.fechaCierre = toDate(fechaCierre);
     if (observacion != null) data.observacion = str(observacion);
     if (resultadoFinal != null) data.resultadoFinal = str(resultadoFinal);
     if (causalCierre != null) data.causalCierre = str(causalCierre);
@@ -560,6 +666,7 @@ export async function PATCH(req: NextRequest) {
         });
 
         const sqrNumero = updated.sqrNumero;
+
         if (!sqrNumero) {
           throw new Error('La solicitud no tiene SQR para cerrar.');
         }
@@ -594,6 +701,7 @@ export async function PATCH(req: NextRequest) {
     });
   } catch (err) {
     console.error('[PATCH /api/solicitudes]', err);
+
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : 'Error interno' },
       { status: 500 }
@@ -601,27 +709,46 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// ── DELETE /api/solicitudes ──────────────────────────────────────────────────
+/* ── DELETE /api/solicitudes ──────────────────────────────────────────────── */
+
 export async function DELETE(req: NextRequest) {
   try {
     const body = await req.json();
-    const { ids, deletedByUsuario, deletedByEmail } = body;
+
+    const {
+      ids,
+      deletedByUsuario,
+      deletedByEmail,
+    } = body;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json({ ok: false, error: 'ids es requerido' }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: 'ids es requerido' },
+        { status: 400 }
+      );
     }
 
+    const idsNumericos = ids.map(Number).filter((n) => !Number.isNaN(n));
+
     const registros = await prisma.solicitud.findMany({
-      where: { id: { in: ids.map(Number) } },
+      where: {
+        id: {
+          in: idsNumericos,
+        },
+      },
     });
 
     if (registros.length === 0) {
-      return NextResponse.json({ ok: false, error: 'No se encontraron registros' }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: 'No se encontraron registros' },
+        { status: 404 }
+      );
     }
 
     await prisma.deletedSolicitud.createMany({
-      data: registros.map((s: any) => ({
+      data: registros.map((s) => ({
         originalId: s.id,
+
         procesoId: s.procesoId,
         procesoSourceKey: s.procesoSourceKey,
         externalId: s.externalId,
@@ -647,11 +774,20 @@ export async function DELETE(req: NextRequest) {
         sede: s.sede,
         plataforma: s.plataforma,
         fechaCierre: s.fechaCierre,
+
+        origenSolicitud: s.origenSolicitud ?? 'Comercial',
+
+        nitContacto: s.nitContacto,
+        personaContacto: s.personaContacto,
+        telefonoContacto: s.telefonoContacto,
+        direccionContacto: s.direccionContacto,
+        correoContacto: s.correoContacto,
+
         procStep: s.procStep,
-        procData: toJsonValue(s.procData),
-        obsData: toJsonArray(s.obsData),
-        docData: toJsonArray(s.docData),
-        asignaciones: toJsonArray(s.asignaciones),
+        procData: s.procData,
+        obsData: s.obsData,
+        docData: s.docData,
+        asignaciones: s.asignaciones,
         revisor: s.revisor,
         aprobador: s.aprobador,
         usuarioRegistro: s.usuarioRegistro,
@@ -670,18 +806,27 @@ export async function DELETE(req: NextRequest) {
 
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
-        deletedByUsuario: deletedByUsuario ?? null,
-        deletedByEmail: deletedByEmail ?? null,
+
+        deletedByUsuario: str(deletedByUsuario),
+        deletedByEmail: str(deletedByEmail),
       })),
     });
 
     await prisma.solicitud.deleteMany({
-      where: { id: { in: ids.map(Number) } },
+      where: {
+        id: {
+          in: idsNumericos,
+        },
+      },
     });
 
-    return NextResponse.json({ ok: true, eliminados: registros.length });
+    return NextResponse.json({
+      ok: true,
+      deleted: registros.length,
+    });
   } catch (err) {
     console.error('[DELETE /api/solicitudes]', err);
+
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : 'Error interno' },
       { status: 500 }
